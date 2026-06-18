@@ -1605,6 +1605,7 @@ function renderMonthlyReport() {
             </select>
           </label>
           <button class="button" type="button" data-action="open-report-email">邮件草稿</button>
+          <button class="button" type="button" data-action="open-monthly-report-html">HTML 简报</button>
           <button class="button" type="button" data-action="export-monthly-report">导出文本</button>
           <button class="button primary" type="button" data-action="copy-monthly-report">复制月报</button>
         </div>
@@ -1654,6 +1655,7 @@ function renderMonthlyReport() {
           <div class="panel-tools">
             <button class="button small" type="button" data-action="copy-monthly-report">复制月报</button>
             <button class="button small" type="button" data-action="open-report-email">邮件草稿</button>
+            <button class="button small" type="button" data-action="open-monthly-report-html">HTML 简报</button>
             <button class="button small" type="button" data-action="export-monthly-report">导出文本</button>
           </div>
         </div>
@@ -1910,6 +1912,98 @@ function monthlyReportText(report = buildMonthlyReportData()) {
     "- 申报负责人：审核费用应归到杭州微新还是深圳微智，以及对应项目是否正确。",
     "- 管理层：重点看研发投入缺口，避免因投入不足导致补贴无法到位。"
   ].join("\n");
+}
+
+function monthlyReportHtml(report = buildMonthlyReportData()) {
+  const riskRows = report.riskProjects.length
+    ? report.riskProjects.map(({ project, aggregate, entity }) => `
+      <tr>
+        <td><strong>${escapeHtml(project.name)}</strong><br><span>${escapeHtml(project.code)} · ${escapeHtml(project.researchDirection || "待确认")}</span></td>
+        <td>${escapeHtml(entity.name)}</td>
+        <td class="danger">${wan(aggregate.gap)} 万</td>
+        <td>${pct(aggregate.progress)}</td>
+        <td>${escapeHtml(project.materialDeadline || "待确认")}</td>
+      </tr>
+    `).join("")
+    : '<tr><td colspan="5" class="empty">暂无明显项目风险</td></tr>';
+  const upcomingRows = report.upcomingItems.length
+    ? report.upcomingItems.map((item) => `
+      <tr>
+        <td><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.project?.name || "公共事项")}</span></td>
+        <td>${escapeHtml(item.dueDate || "待确认")}</td>
+        <td>${item.days < 0 ? `<strong class="danger">逾期 ${Math.abs(item.days)} 天</strong>` : `${item.days} 天`}</td>
+        <td>${escapeHtml(item.detail)}</td>
+      </tr>
+    `).join("")
+    : '<tr><td colspan="4" class="empty">暂无近期材料节点</td></tr>';
+  return `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>研发补贴平衡月报（${escapeHtml(report.month)}）</title>
+  <style>
+    body{margin:0;background:#eef4fb;color:#1f2933;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Arial,sans-serif;}
+    .page{max-width:1040px;margin:0 auto;padding:34px 28px 46px;}
+    .hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;padding:28px;border-radius:18px;background:linear-gradient(135deg,#f8fbff,#eaf3ff);border:1px solid #dbe8f5;}
+    .brand{display:flex;align-items:center;gap:14px;margin-bottom:24px;color:#1556a8;}
+    .mark{width:52px;height:52px;display:grid;place-items:center;border-radius:14px;background:#fff;box-shadow:0 12px 28px rgba(31,112,214,.16)}
+    .mark svg{width:42px;height:42px}.mark path{fill:none;stroke:#1f70d6;stroke-linecap:round;stroke-linejoin:round}.ring{stroke-width:5.8}.curve{stroke-width:3.3;opacity:.9}.dna{stroke-width:2.4}
+    h1{margin:0;font-size:34px;letter-spacing:0;color:#16324f} .sub{margin:10px 0 0;color:#5d6f82;line-height:1.6}
+    .badge{display:inline-block;padding:8px 12px;border-radius:999px;background:#dcecff;color:#175cad;font-weight:700;font-size:14px;white-space:nowrap}
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}
+    .card{background:#fff;border:1px solid #e1e9f2;border-radius:14px;padding:16px}.card label{display:block;color:#66788c;font-size:13px}.card strong{display:block;margin-top:8px;font-size:24px;color:#15263a}.card span{display:block;margin-top:6px;color:#758597;font-size:12px;line-height:1.45}
+    .conclusion{background:#102a43;color:#fff;border-radius:16px;padding:20px;margin:18px 0}.conclusion strong{display:block;font-size:20px;line-height:1.45}.conclusion span{display:block;margin-top:8px;color:#c9d8e8;line-height:1.65}
+    .section{background:#fff;border:1px solid #e1e9f2;border-radius:16px;margin-top:18px;overflow:hidden}.section h2{margin:0;padding:17px 18px;font-size:18px;border-bottom:1px solid #edf2f7}
+    table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:13px 14px;border-bottom:1px solid #edf2f7;text-align:left;vertical-align:top}th{color:#596b80;background:#f8fafc;font-weight:700}td span{color:#758597;font-size:12px}.danger{color:#df3f3f;font-weight:800}.ok{color:#118264;font-weight:800}.empty{text-align:center;color:#7b8da1;padding:24px!important}
+    .footer{margin-top:18px;color:#6b7c90;font-size:12px;line-height:1.7}.footer strong{color:#1f2933}
+    @media(max-width:760px){.page{padding:18px}.hero{display:block}.cards{grid-template-columns:1fr 1fr}h1{font-size:26px}table{font-size:12px}}
+  </style>
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <div>
+        <div class="brand">
+          <div class="mark"><svg viewBox="0 0 64 64"><path class="ring" d="M48 13c-8-7-23-7-31 2-8 10-3 23 14 23 14 0 19 9 11 17-8 7-23 5-29-5"/><path class="curve" d="M51 18c4 8 2 19-7 25M13 46c-5-9-2-22 8-27"/><path class="dna" d="M20 32c7-6 17-6 24 0M22 29l4 6m4-9 4 12m4-12 4 9"/></svg></div>
+          <div><strong>微新生物 SynBiome</strong><br><span>研发补贴平衡台账</span></div>
+        </div>
+        <h1>研发补贴平衡月报</h1>
+        <p class="sub">本简报用于每月提醒杭州、深圳两地研发费用是否满足政策要求，避免因研发投入不足影响补贴到账。</p>
+      </div>
+      <div class="badge">${escapeHtml(report.month)}</div>
+    </section>
+    <section class="cards">
+      <article class="card"><label>研发投入缺口</label><strong>${wan(report.totalGap)} 万</strong><span>两地主体合计</span></article>
+      <article class="card"><label>本月新增投入</label><strong>${wan(report.monthInput)} 万</strong><span>当月已录入归集金额</span></article>
+      <article class="card"><label>补贴到账率</label><strong>${report.totalDeclared ? pct(report.totalReceived / report.totalDeclared) : "0%"}</strong><span>到账 ${wan(report.totalReceived)} / 申请 ${wan(report.totalDeclared)} 万</span></article>
+      <article class="card"><label>重点风险</label><strong>${report.riskProjects.length}</strong><span>仍有缺口或节点紧张</span></article>
+    </section>
+    <section class="conclusion"><strong>${escapeHtml(report.conclusion)}</strong><span>${escapeHtml(report.nextAction)}</span></section>
+    <section class="section">
+      <h2>两地平衡情况</h2>
+      <table><thead><tr><th>主体</th><th>项目数</th><th>要求研发投入</th><th>当前研发投入</th><th>投入缺口</th><th>补贴到账率</th><th>建议</th></tr></thead>
+      <tbody>${report.entityRows.map((row) => `<tr><td><strong>${escapeHtml(row.entity.name)}</strong></td><td>${row.projects}</td><td>${wan(row.target)} 万</td><td>${wan(row.collected)} 万</td><td class="${row.gap > 0 ? "danger" : "ok"}">${wan(row.gap)} 万</td><td>${row.declared ? pct(row.received / row.declared) : "0%"}</td><td>${escapeHtml(row.advice)}</td></tr>`).join("")}</tbody></table>
+    </section>
+    <section class="section">
+      <h2>重点项目风险</h2>
+      <table><thead><tr><th>项目</th><th>主体</th><th>投入缺口</th><th>达标率</th><th>材料截止</th></tr></thead><tbody>${riskRows}</tbody></table>
+    </section>
+    <section class="section">
+      <h2>近期材料节点</h2>
+      <table><thead><tr><th>事项</th><th>截止日</th><th>剩余时间</th><th>说明</th></tr></thead><tbody>${upcomingRows}</tbody></table>
+    </section>
+    <p class="footer"><strong>固定动作：</strong>会计每月录入新增研发投入；申报负责人审核主体和项目归属；管理层重点看缺口，避免因研发投入不足导致补贴无法到位。</p>
+  </main>
+</body>
+</html>`;
+}
+
+function openMonthlyReportHtml() {
+  const blob = new Blob([monthlyReportHtml()], { type: "text/html;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener");
+  showToast("HTML 简报已打开，可截图或另存");
 }
 
 function renderWorkflowStep(number, title, copy, state) {
@@ -3986,6 +4080,7 @@ function handleAction(action, target) {
     "export-expenses": exportExpenses,
     "copy-monthly-report": copyMonthlyReport,
     "export-monthly-report": exportMonthlyReport,
+    "open-monthly-report-html": openMonthlyReportHtml,
     "open-report-email": openMonthlyReportEmail,
     "open-project-modal": openProjectModal,
     "save-project": saveProjectFromModal,
