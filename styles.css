@@ -1347,7 +1347,7 @@ button {
 
 .action-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
   padding: 16px;
 }
@@ -1375,6 +1375,42 @@ button {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
+}
+
+.report-panel {
+  overflow: hidden;
+}
+
+.report-conclusion {
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  background: #f7fbfa;
+}
+
+.report-conclusion strong {
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.report-conclusion span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.report-textarea {
+  width: calc(100% - 32px);
+  min-height: 360px;
+  margin: 16px;
+  padding: 14px;
+  resize: vertical;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: #fbfcfd;
+  color: var(--text);
+  font: 13px/1.8 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 }
 
 .toast {
