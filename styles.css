@@ -96,38 +96,38 @@ button {
   position: relative;
   width: 42px;
   height: 42px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border-radius: 11px;
+  background: #f6fbff;
+  box-shadow: 0 10px 22px rgba(47, 126, 230, 0.18);
 }
 
-.brand-mark span {
-  position: absolute;
-  width: 18px;
-  height: 18px;
-  border-radius: 6px;
-  background: #14b8a6;
-  box-shadow: 0 8px 16px rgba(20, 184, 166, 0.22);
+.brand-mark svg {
+  width: 34px;
+  height: 34px;
+  color: #1f70d6;
 }
 
-.brand-mark span:nth-child(1) {
-  left: 0;
-  top: 12px;
+.brand-mark path {
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
-.brand-mark span:nth-child(2) {
-  left: 14px;
-  top: 0;
-  background: #0ea5a3;
+.logo-ring {
+  stroke-width: 5.8;
 }
 
-.brand-mark span:nth-child(3) {
-  left: 14px;
-  top: 25px;
-  background: #0f766e;
+.logo-curve {
+  stroke-width: 3.4;
+  opacity: 0.9;
 }
 
-.brand-mark span:nth-child(4) {
-  right: 0;
-  top: 12px;
-  background: #2dd4bf;
+.logo-dna {
+  stroke-width: 2.5;
 }
 
 .nav-list {
