@@ -1,19 +1,27 @@
 const STORAGE_KEY = "research-subsidy-ledger-v1";
+const SESSION_KEY = "research-subsidy-ledger-session-v1";
 const TODAY = new Date("2026-06-18T00:00:00");
 const APP_CONFIG = window.SUBSIDY_APP_CONFIG || {};
 const CLOUD_ORG_ID = APP_CONFIG.organizationId || "micro-wisdom-balance";
-const CLOUD_TABLE = "ledger_snapshots";
-const MEMBER_TABLE = "allowed_user_emails";
+const CLOUD_TABLE = APP_CONFIG.cloudbaseCollection || "ledger_snapshots";
+const CLOUD_POLL_MS = 20000;
+const ALLOWED_ACCOUNTS = Array.isArray(APP_CONFIG.accounts)
+  ? APP_CONFIG.accounts.map((account) => ({
+      ...account,
+      email: String(account.email || "").trim().toLowerCase()
+    }))
+  : [];
 
 const cloud = {
-  client: null,
+  app: null,
+  db: null,
   user: null,
-  role: "本地演示",
+  role: "未登录",
   enabled: false,
   loading: false,
   saveTimer: null,
   applyingRemote: false,
-  channel: null,
+  pollTimer: null,
   lastSavedAt: null
 };
 
@@ -590,11 +598,35 @@ function defaultMaterialNeeds(project) {
 }
 
 function isCloudConfigured() {
-  return Boolean(
-    APP_CONFIG.supabaseUrl &&
-    APP_CONFIG.supabaseAnonKey &&
-    window.supabase?.createClient
-  );
+  return Boolean(APP_CONFIG.cloudbaseEnvId);
+}
+
+function getCloudbaseSdk() {
+  return window.cloudbase || window.tcb || null;
+}
+
+function findAllowedAccount(email) {
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+  return ALLOWED_ACCOUNTS.find((account) => account.email === normalizedEmail) || null;
+}
+
+function readStoredSession() {
+  try {
+    const session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    const account = findAllowedAccount(session?.email);
+    if (!account) return null;
+    return { email: account.email, role: account.role || "已登录用户" };
+  } catch {
+    return null;
+  }
+}
+
+function storeSession(email) {
+  const account = findAllowedAccount(email);
+  if (!account) return null;
+  const session = { email: account.email, role: account.role || "已登录用户", loginAt: new Date().toISOString() };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  return session;
 }
 
 function setSyncStatus(text, tone = "local") {
@@ -607,13 +639,14 @@ function updateAccountUi() {
   const email = cloud.user?.email || "";
   const configured = isCloudConfigured();
   if (dom.logoutButton) dom.logoutButton.hidden = !cloud.user;
-  if (dom.accountAvatar) dom.accountAvatar.textContent = email ? email.slice(0, 1).toUpperCase() : (configured ? "登" : "本");
-  if (dom.accountName) dom.accountName.textContent = email || (configured ? "未登录" : "本地演示");
-  if (dom.accountRole) dom.accountRole.textContent = cloud.user ? cloud.role : (configured ? "请登录后同步数据" : "配置云端后可登录同步");
+  if (dom.accountAvatar) dom.accountAvatar.textContent = email ? email.slice(0, 1).toUpperCase() : "登";
+  if (dom.accountName) dom.accountName.textContent = email || (configured ? "未登录" : "本机模式");
+  if (dom.accountRole) dom.accountRole.textContent = cloud.user ? cloud.role : "请用公司邮箱登录";
 }
 
 function renderAuthGate(message = "") {
   if (!dom.authLayer) return;
+  const accountHint = ALLOWED_ACCOUNTS.map((account) => account.email).join(" / ");
   dom.authLayer.hidden = false;
   dom.authLayer.innerHTML = `
     <div class="auth-card" role="dialog" aria-modal="true">
@@ -625,19 +658,18 @@ function renderAuthGate(message = "") {
       <form id="loginForm" class="auth-form">
         <label>
           <span>邮箱账号</span>
-          <input name="email" type="email" autocomplete="email" placeholder="name@company.com" required>
+          <input name="email" type="email" autocomplete="email" placeholder="yin.chen@synbiome.cn" required>
         </label>
         <label>
           <span>密码</span>
-          <input name="password" type="password" autocomplete="current-password" placeholder="管理员创建账号时设置">
+          <input name="password" type="password" autocomplete="current-password" placeholder="统一密码" required>
         </label>
       </form>
       <div class="auth-actions">
         <button class="button primary" type="button" data-action="login">登录</button>
-        <button class="button" type="button" data-action="send-login-link">发送登录邮件</button>
       </div>
       <div class="auth-footnote">
-        账号由管理员创建或邀请；如无法登录，请先确认邮箱已加入允许名单。
+        允许登录账号：${escapeHtml(accountHint)}。
       </div>
     </div>
   `;
@@ -650,38 +682,22 @@ function hideAuthGate() {
 }
 
 async function initCloud() {
-  if (!isCloudConfigured()) {
-    setSyncStatus("本地模式", "local");
-    updateAccountUi();
-    return;
-  }
-  cloud.enabled = true;
-  cloud.client = window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey);
-  setSyncStatus("检查登录", "syncing");
-  const { data } = await cloud.client.auth.getSession();
-  cloud.user = data.session?.user || null;
-  updateAccountUi();
-  cloud.client.auth.onAuthStateChange(async (_event, session) => {
-    cloud.user = session?.user || null;
-    updateAccountUi();
-    if (cloud.user) {
-      hideAuthGate();
-      await loadCloudState();
-      subscribeCloudChanges();
-      render();
-    } else {
-      unsubscribeCloudChanges();
-      setSyncStatus("未登录", "local");
-      renderAuthGate();
-    }
-  });
-  if (!cloud.user) {
+  const session = readStoredSession();
+  if (!session) {
+    cloud.user = null;
+    cloud.role = "未登录";
     setSyncStatus("未登录", "local");
+    updateAccountUi();
     renderAuthGate();
     return;
   }
+  cloud.user = { email: session.email };
+  cloud.role = session.role;
+  updateAccountUi();
+  hideAuthGate();
+  await prepareCloudbase();
   await loadCloudState();
-  subscribeCloudChanges();
+  startCloudPolling();
   render();
 }
 
@@ -689,142 +705,220 @@ async function loginWithPassword() {
   const form = document.getElementById("loginForm");
   if (!form?.reportValidity()) return;
   const data = Object.fromEntries(new FormData(form));
-  if (!data.password) {
-    showToast("请输入密码，或点击发送登录邮件");
-    return;
-  }
-  setSyncStatus("登录中", "syncing");
-  const result = await cloud.client.auth.signInWithPassword({
-    email: data.email,
-    password: data.password
-  });
-  if (result.error) {
+  const email = String(data.email || "").trim().toLowerCase();
+  const account = findAllowedAccount(email);
+  if (!account) {
+    renderAuthGate("这个邮箱还没有加入允许名单，请使用公司指定账号。");
     setSyncStatus("登录失败", "error");
-    renderAuthGate(result.error.message || "登录失败，请检查账号和密码。");
     return;
   }
+  if (String(data.password || "") !== String(APP_CONFIG.loginPassword || "")) {
+    setSyncStatus("登录失败", "error");
+    renderAuthGate("密码不对，请重新输入。");
+    return;
+  }
+  const session = storeSession(email);
+  cloud.user = { email: session.email };
+  cloud.role = session.role;
+  hideAuthGate();
+  updateAccountUi();
+  setSyncStatus("登录成功", "ok");
   showToast("登录成功");
+  await prepareCloudbase();
+  await loadCloudState();
+  startCloudPolling();
+  render();
 }
 
 async function sendLoginLink() {
-  const form = document.getElementById("loginForm");
-  if (!form?.reportValidity()) return;
-  const data = Object.fromEntries(new FormData(form));
-  setSyncStatus("发送邮件", "syncing");
-  const result = await cloud.client.auth.signInWithOtp({
-    email: data.email,
-    options: { emailRedirectTo: window.location.href.split("#")[0] }
-  });
-  if (result.error) {
-    setSyncStatus("发送失败", "error");
-    renderAuthGate(result.error.message || "登录邮件发送失败。");
-    return;
-  }
-  setSyncStatus("等待登录", "syncing");
-  renderAuthGate("登录邮件已发送，请打开邮箱里的链接。");
+  renderAuthGate("现在已经改成统一密码登录，不需要邮件。");
 }
 
 async function logout() {
-  if (!cloud.client) return;
-  await cloud.client.auth.signOut();
+  stopCloudPolling();
+  localStorage.removeItem(SESSION_KEY);
   cloud.user = null;
+  cloud.role = "未登录";
   updateAccountUi();
+  setSyncStatus("未登录", "local");
   renderAuthGate();
   showToast("已退出登录");
 }
 
-async function loadCloudState() {
-  if (!cloud.client || !cloud.user) return;
-  cloud.loading = true;
-  setSyncStatus("同步中", "syncing");
-  const { data, error } = await cloud.client
-    .from(CLOUD_TABLE)
-    .select("data, updated_at")
-    .eq("org_id", CLOUD_ORG_ID)
-    .maybeSingle();
-  if (error) {
-    cloud.loading = false;
-    setSyncStatus("同步失败", "error");
-    showToast("云端读取失败，请检查 Supabase 权限配置");
-    return;
+async function prepareCloudbase() {
+  if (!isCloudConfigured()) {
+    cloud.enabled = false;
+    setSyncStatus("本机保存", "local");
+    return false;
   }
-  if (data?.data && Array.isArray(data.data.projects) && Array.isArray(data.data.expenses)) {
-    cloud.applyingRemote = true;
-    db = migrateState(data.data);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-    cloud.applyingRemote = false;
-  } else {
-    await saveCloudState(true);
+  if (window.location.protocol === "file:") {
+    cloud.enabled = false;
+    setSyncStatus("本机预览", "local");
+    return false;
   }
-  await loadCurrentUserRole();
-  cloud.loading = false;
-  cloud.lastSavedAt = data?.updated_at || cloud.lastSavedAt;
-  setSyncStatus("已同步", "ok");
-  updateAccountUi();
+  const sdk = getCloudbaseSdk();
+  if (!sdk?.init) {
+    cloud.enabled = false;
+    setSyncStatus("本机保存", "local");
+    return false;
+  }
+  try {
+    if (!cloud.app) {
+      cloud.app = sdk.init({ env: APP_CONFIG.cloudbaseEnvId });
+    }
+    await ensureCloudbaseLogin();
+    cloud.db = typeof cloud.app.database === "function" ? cloud.app.database() : cloud.app.database;
+    cloud.enabled = Boolean(cloud.db);
+    setSyncStatus(cloud.enabled ? "已连接腾讯云" : "本机保存", cloud.enabled ? "ok" : "local");
+    return cloud.enabled;
+  } catch (error) {
+    cloud.enabled = false;
+    setSyncStatus("本机保存", "local");
+    return false;
+  }
 }
 
-async function loadCurrentUserRole() {
-  if (!cloud.client || !cloud.user?.email) return;
-  const { data } = await cloud.client
-    .from(MEMBER_TABLE)
-    .select("role")
-    .eq("email", cloud.user.email.toLowerCase())
-    .maybeSingle();
-  cloud.role = data?.role || "已登录用户";
+async function ensureCloudbaseLogin() {
+  if (!cloud.app) return;
+  const auth = typeof cloud.app.auth === "function"
+    ? cloud.app.auth({ persistence: "local" })
+    : cloud.app.auth;
+  if (!auth) return;
+  try {
+    if (typeof auth.getLoginState === "function") {
+      const state = await auth.getLoginState();
+      if (state) return;
+    }
+  } catch {
+    // 不影响后续匿名登录尝试。
+  }
+  if (typeof auth.anonymousAuthProvider === "function") {
+    const provider = auth.anonymousAuthProvider();
+    if (provider?.signIn) {
+      await provider.signIn();
+      return;
+    }
+  }
+  if (typeof auth.signInAnonymously === "function") {
+    await auth.signInAnonymously();
+    return;
+  }
+  if (typeof auth.signInWithAnonymous === "function") {
+    await auth.signInWithAnonymous();
+  }
+}
+
+function cloudCollection() {
+  return cloud.db?.collection?.(CLOUD_TABLE) || null;
+}
+
+function normalizeCloudRecord(response) {
+  let record = response?.data ?? response;
+  if (Array.isArray(record)) record = record[0] || null;
+  return record || null;
+}
+
+function cloudPayload() {
+  return {
+    orgId: CLOUD_ORG_ID,
+    data: db,
+    updatedBy: cloud.user?.email || "unknown",
+    updatedAt: new Date().toISOString()
+  };
+}
+
+async function setCloudDoc(doc, payload) {
+  try {
+    return await doc.set(payload);
+  } catch (firstError) {
+    try {
+      return await doc.set({ data: payload });
+    } catch {
+      try {
+        return await doc.update(payload);
+      } catch {
+        try {
+          return await doc.update({ data: payload });
+        } catch {
+          throw firstError;
+        }
+      }
+    }
+  }
+}
+
+async function loadCloudState() {
+  if (!cloud.user) return;
+  if (!cloud.db) {
+    const ready = await prepareCloudbase();
+    if (!ready) return;
+  }
+  const collection = cloudCollection();
+  if (!collection) return;
+  cloud.loading = true;
+  setSyncStatus("读取腾讯云", "syncing");
+  try {
+    const record = normalizeCloudRecord(await collection.doc(CLOUD_ORG_ID).get());
+    if (record?.data && Array.isArray(record.data.projects) && Array.isArray(record.data.expenses)) {
+      const remoteStamp = record.updatedAt || record.updated_at || null;
+      cloud.applyingRemote = true;
+      db = migrateState(record.data);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+      cloud.applyingRemote = false;
+      cloud.lastSavedAt = remoteStamp || cloud.lastSavedAt;
+      setSyncStatus("已同步", "ok");
+    } else {
+      await saveCloudState(true);
+    }
+  } catch (error) {
+    setSyncStatus("本机保存", "local");
+    showToast("腾讯云数据库暂时没连上，数据先保存在本机");
+  } finally {
+    cloud.loading = false;
+    updateAccountUi();
+  }
 }
 
 function queueCloudSave() {
-  if (!cloud.enabled || !cloud.client || !cloud.user || cloud.applyingRemote) return;
+  if (!cloud.user || cloud.applyingRemote) return;
   window.clearTimeout(cloud.saveTimer);
   cloud.saveTimer = window.setTimeout(() => saveCloudState(), 650);
 }
 
 async function saveCloudState(force = false) {
-  if (!cloud.client || !cloud.user) return;
+  if (!cloud.user) return;
   if (cloud.loading && !force) return;
-  setSyncStatus("保存中", "syncing");
-  const { error } = await cloud.client
-    .from(CLOUD_TABLE)
-    .upsert({
-      org_id: CLOUD_ORG_ID,
-      data: db,
-      updated_by: cloud.user.id,
-      updated_at: new Date().toISOString()
-    }, { onConflict: "org_id" });
-  if (error) {
-    setSyncStatus("保存失败", "error");
-    showToast("云端保存失败，数据已先保存在本机");
+  if (!cloud.db) {
+    const ready = await prepareCloudbase();
+    if (!ready) return;
+  }
+  const collection = cloudCollection();
+  if (!collection) return;
+  const payload = cloudPayload();
+  try {
+    setSyncStatus("保存腾讯云", "syncing");
+    await setCloudDoc(collection.doc(CLOUD_ORG_ID), payload);
+    cloud.lastSavedAt = payload.updatedAt;
+    setSyncStatus("已同步", "ok");
+  } catch (error) {
+    setSyncStatus("本机保存", "local");
+    showToast("腾讯云保存失败，数据已先保存在本机");
     return;
   }
-  setSyncStatus("已同步", "ok");
 }
 
-function subscribeCloudChanges() {
-  if (!cloud.client || cloud.channel) return;
-  cloud.channel = cloud.client
-    .channel(`ledger-${CLOUD_ORG_ID}`)
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: CLOUD_TABLE, filter: `org_id=eq.${CLOUD_ORG_ID}` },
-      (payload) => {
-        if (!payload.new?.data) return;
-        if (payload.new.updated_by === cloud.user?.id) return;
-        cloud.applyingRemote = true;
-        db = migrateState(payload.new.data);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
-        cloud.applyingRemote = false;
-        render();
-        setSyncStatus("已同步", "ok");
-        showToast("已同步他人的最新修改");
-      }
-    )
-    .subscribe();
+function startCloudPolling() {
+  stopCloudPolling();
+  if (!cloud.user) return;
+  cloud.pollTimer = window.setInterval(async () => {
+    await loadCloudState();
+    render();
+  }, CLOUD_POLL_MS);
 }
 
-function unsubscribeCloudChanges() {
-  if (!cloud.client || !cloud.channel) return;
-  cloud.client.removeChannel(cloud.channel);
-  cloud.channel = null;
+function stopCloudPolling() {
+  window.clearInterval(cloud.pollTimer);
+  cloud.pollTimer = null;
 }
 
 function saveState() {
@@ -3504,17 +3598,20 @@ function handleAction(action, target) {
     "send-login-link": sendLoginLink,
     "logout": logout,
     "sync-now": async () => {
-      if (!cloud.enabled) {
-        showToast("当前是本地演示模式，配置云端后可同步");
-        return;
-      }
       if (!cloud.user) {
         renderAuthGate();
         return;
       }
+      if (!cloud.db) {
+        await prepareCloudbase();
+      }
+      if (!cloud.db) {
+        showToast("腾讯云数据库暂时没连上，当前数据已保存在本机");
+        return;
+      }
       await loadCloudState();
       render();
-      showToast("已刷新云端数据");
+      showToast("已刷新腾讯云数据");
     },
     "reset-data": () => {
       db = migrateState(clone(seed));

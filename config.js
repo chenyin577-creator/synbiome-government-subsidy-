@@ -1,10 +1,18 @@
 window.SUBSIDY_APP_CONFIG = {
-  // 填入 Supabase Project URL，例如：https://xxxx.supabase.co
-  supabaseUrl: "https://sjwpldmadvrokfjfsbko.supabase.co",
+  // 腾讯云 CloudBase 环境。这个版本只用腾讯云一体化保存数据。
+  cloudbaseEnvId: "synbiome-d6gjygam37987566a",
 
-  // Supabase publishable key。它用于网页连接后台，放在前端是正常的。
-  supabaseAnonKey: "sb_publishable_kxuIxoFzPiTaU1d-gXZ26A_cGYuHjmr",
+  // 存放台账数据的腾讯云集合名称。
+  cloudbaseCollection: "ledger_snapshots",
 
   // 一家公司一个台账。没有特殊需要不要改。
-  organizationId: "micro-wisdom-balance"
+  organizationId: "micro-wisdom-balance",
+
+  // MVP 简化登录：只允许下面三个公司邮箱，用统一密码登录。
+  loginPassword: "888888",
+  accounts: [
+    { email: "yin.chen@synbiome.cn", role: "管理层" },
+    { email: "yin.zhang@synbiome.cn", role: "项目负责人" },
+    { email: "lei.dai@synbiome.cn", role: "会计" }
+  ]
 };
