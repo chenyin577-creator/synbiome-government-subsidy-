@@ -15,5 +15,8 @@ window.SUBSIDY_APP_CONFIG = {
     { email: "yin.chen@synbiome.cn", cloudUsername: "yinchen", role: "管理层" },
     { email: "yin.zhang@synbiome.cn", cloudUsername: "yinzhang", role: "项目负责人" },
     { email: "lei.dai@synbiome.cn", cloudUsername: "leidai", role: "会计" }
-  ]
+  ],
+
+  // 月报默认收件人。后续可以继续加 CEO、CFO 或项目负责人邮箱。
+  monthlyReportRecipients: ["108234704@qq.com"]
 };
