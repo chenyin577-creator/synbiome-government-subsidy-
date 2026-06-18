@@ -10,9 +10,10 @@ window.SUBSIDY_APP_CONFIG = {
 
   // MVP 简化登录：只允许下面三个公司邮箱，用统一密码登录。
   loginPassword: "888888",
+  cloudbaseLoginPassword: "Synbiome888888",
   accounts: [
-    { email: "yin.chen@synbiome.cn", role: "管理层" },
-    { email: "yin.zhang@synbiome.cn", role: "项目负责人" },
-    { email: "lei.dai@synbiome.cn", role: "会计" }
+    { email: "yin.chen@synbiome.cn", cloudUsername: "yinchen", role: "管理层" },
+    { email: "yin.zhang@synbiome.cn", cloudUsername: "yinzhang", role: "项目负责人" },
+    { email: "lei.dai@synbiome.cn", cloudUsername: "leidai", role: "会计" }
   ]
 };

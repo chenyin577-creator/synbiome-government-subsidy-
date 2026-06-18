@@ -722,10 +722,16 @@ async function loginWithPassword() {
   cloud.role = session.role;
   hideAuthGate();
   updateAccountUi();
-  setSyncStatus("登录成功", "ok");
-  showToast("登录成功");
-  await prepareCloudbase();
-  await loadCloudState();
+  setSyncStatus("登录腾讯云", "syncing");
+  let cloudLoginOk = false;
+  try {
+    cloudLoginOk = await signInCloudbaseAccount(account);
+  } catch (error) {
+    cloudLoginOk = false;
+  }
+  setSyncStatus(cloudLoginOk ? "已连接腾讯云" : "本机保存", cloudLoginOk ? "ok" : "local");
+  showToast(cloudLoginOk ? "登录成功，已连接腾讯云" : "已进入台账，腾讯云同步暂未连上");
+  if (cloudLoginOk) await loadCloudState();
   startCloudPolling();
   render();
 }
@@ -736,6 +742,12 @@ async function sendLoginLink() {
 
 async function logout() {
   stopCloudPolling();
+  try {
+    const auth = getCloudbaseAuth();
+    if (auth?.signOut) await auth.signOut();
+  } catch {
+    // 退出本地会话即可。
+  }
   localStorage.removeItem(SESSION_KEY);
   cloud.user = null;
   cloud.role = "未登录";
@@ -766,7 +778,6 @@ async function prepareCloudbase() {
     if (!cloud.app) {
       cloud.app = sdk.init({ env: APP_CONFIG.cloudbaseEnvId });
     }
-    await ensureCloudbaseLogin();
     cloud.db = typeof cloud.app.database === "function" ? cloud.app.database() : cloud.app.database;
     cloud.enabled = Boolean(cloud.db);
     setSyncStatus(cloud.enabled ? "已连接腾讯云" : "本机保存", cloud.enabled ? "ok" : "local");
@@ -778,34 +789,34 @@ async function prepareCloudbase() {
   }
 }
 
-async function ensureCloudbaseLogin() {
+function getCloudbaseAuth() {
   if (!cloud.app) return;
-  const auth = typeof cloud.app.auth === "function"
+  return typeof cloud.app.auth === "function"
     ? cloud.app.auth({ persistence: "local" })
     : cloud.app.auth;
+}
+
+async function signInCloudbaseAccount(account) {
+  if (window.location.protocol === "file:") return false;
+  const ready = await prepareCloudbase();
+  if (!ready) return false;
+  const auth = getCloudbaseAuth();
   if (!auth) return;
   try {
-    if (typeof auth.getLoginState === "function") {
-      const state = await auth.getLoginState();
-      if (state) return;
-    }
+    if (auth.signOut) await auth.signOut();
   } catch {
-    // 不影响后续匿名登录尝试。
+    // 后续登录会覆盖旧状态。
   }
-  if (typeof auth.anonymousAuthProvider === "function") {
-    const provider = auth.anonymousAuthProvider();
-    if (provider?.signIn) {
-      await provider.signIn();
-      return;
-    }
+  if (typeof auth.signInWithPassword !== "function") return false;
+  await auth.signInWithPassword({
+    username: account.cloudUsername || account.email,
+    password: APP_CONFIG.cloudbaseLoginPassword || APP_CONFIG.loginPassword
+  });
+  if (typeof auth.getLoginState === "function") {
+    const state = await auth.getLoginState();
+    return Boolean(state);
   }
-  if (typeof auth.signInAnonymously === "function") {
-    await auth.signInAnonymously();
-    return;
-  }
-  if (typeof auth.signInWithAnonymous === "function") {
-    await auth.signInWithAnonymous();
-  }
+  return true;
 }
 
 function cloudCollection() {
