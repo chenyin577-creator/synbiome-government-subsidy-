@@ -11,6 +11,9 @@ const ALLOWED_ACCOUNTS = Array.isArray(APP_CONFIG.accounts)
       email: String(account.email || "").trim().toLowerCase()
     }))
   : [];
+const REPORT_EMAILS = Array.isArray(APP_CONFIG.monthlyReportRecipients)
+  ? APP_CONFIG.monthlyReportRecipients.map((email) => String(email || "").trim()).filter(Boolean)
+  : [];
 
 const cloud = {
   app: null,
@@ -30,6 +33,7 @@ const icons = {
   monthly: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v4M17 3v4M4 8h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Zm4 8h3m-3 4h6"/></svg>',
   intake: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4V4Zm4 4h8M8 12h8M8 16h5M18 3v4M6 3v4"/></svg>',
   projects: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16M7 5v14"/></svg>',
+  report: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6V3Zm3 5h6M9 12h6M9 16h4M16 18l2 2 4-5"/></svg>',
   ledger: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h10l3 3v15H4V3h3Zm10 0v4h4M8 11h8M8 15h8M8 19h5"/></svg>',
   allocate: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h7m-7 5h11m-11 5h7M17 6v12m0 0-3-3m3 3 3-3"/></svg>',
   policy: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6V3Zm4 5h4M9 12h6M9 16h6"/></svg>',
@@ -41,6 +45,7 @@ const icons = {
 const navItems = [
   ["dashboard", "平衡总览", "杭州与深圳研发投入是否够用"],
   ["monthly", "每月录入", "每月录入固定研发投入数字"],
+  ["report", "月报简报", "每月给管理层看的简版汇报"],
   ["projects", "项目设置", "先设置项目目标，后续只录数字"]
 ];
 
@@ -1210,6 +1215,7 @@ function render() {
   const renderers = {
     dashboard: renderDashboard,
     monthly: renderMonthly,
+    report: renderMonthlyReport,
     intake: renderProjectIntake,
     projects: renderProjects,
     ledger: renderLedger,
@@ -1299,7 +1305,7 @@ function renderDashboard() {
       <section class="panel span-full executive-actions">
         <div class="panel-header">
           <div class="panel-title">
-            <h2>日常只做三件事</h2>
+            <h2>日常只做四件事</h2>
             <span class="count">简单版</span>
           </div>
         </div>
@@ -1315,6 +1321,10 @@ function renderDashboard() {
           <button type="button" class="action-tile" data-nav-target="dashboard">
             <strong>3. 看缺口分配</strong>
             <span>优先把后续研发支出安排到达标率低、缺口大的主体和项目。</span>
+          </button>
+          <button type="button" class="action-tile" data-nav-target="report">
+            <strong>4. 发月报提醒</strong>
+            <span>每月生成一份简版汇报，复制到邮件或微信群，提醒两地费用是否够。</span>
           </button>
         </div>
       </section>
@@ -1576,6 +1586,330 @@ function renderMonthlyFixedTable(projects) {
       </div>
     </form>
   `;
+}
+
+function renderMonthlyReport() {
+  const report = buildMonthlyReportData();
+  return `
+    <div class="page-stack">
+      <section class="monthly-hero">
+        <div>
+          <h2>${escapeHtml(report.month)} 月报简报</h2>
+          <p>给领导、财务和申报负责人看的简版提醒：两地主体研发投入是否够、补贴到账是否跟上、下个月优先补哪里。</p>
+        </div>
+        <div class="month-controls">
+          <label class="inline-field">
+            <span>汇报月份</span>
+            <select id="monthSelect" class="control">
+              ${availableMonths().map((month) => `<option value="${month}" ${month === ui.month ? "selected" : ""}>${month}</option>`).join("")}
+            </select>
+          </label>
+          <button class="button" type="button" data-action="open-report-email">邮件草稿</button>
+          <button class="button" type="button" data-action="export-monthly-report">导出文本</button>
+          <button class="button primary" type="button" data-action="copy-monthly-report">复制月报</button>
+        </div>
+      </section>
+
+      <div class="metric-row">
+        ${renderTopMetric("研发投入缺口", `${wan(report.totalGap)} 万元`, "两地主体合计")}
+        ${renderTopMetric("本月新增投入", `${wan(report.monthInput)} 万元`, "本月已录入归集金额")}
+        ${renderTopMetric("补贴到账率", report.totalDeclared ? pct(report.totalReceived / report.totalDeclared) : "0%", `到账 ${wan(report.totalReceived)} / 申请 ${wan(report.totalDeclared)} 万元`)}
+        ${renderTopMetric("重点风险", report.riskProjects.length, "仍有缺口或材料节点紧张")}
+      </div>
+
+      <section class="panel report-panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>本月结论</h2><span class="count">一句话</span></div>
+        </div>
+        <div class="report-conclusion">
+          <strong>${escapeHtml(report.conclusion)}</strong>
+          <span>${escapeHtml(report.nextAction)}</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>两地平衡情况</h2><span class="count">${report.entityRows.length}</span></div>
+        </div>
+        ${renderReportEntityTable(report)}
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>项目风险清单</h2><span class="count">${report.riskProjects.length}</span></div>
+        </div>
+        ${renderReportRiskProjectTable(report)}
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>近期材料节点</h2><span class="count">${report.upcomingItems.length}</span></div>
+        </div>
+        ${renderReportUpcomingTable(report)}
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>可直接发送的文字</h2><span class="count">邮件/微信</span></div>
+          <div class="panel-tools">
+            <button class="button small" type="button" data-action="copy-monthly-report">复制月报</button>
+            <button class="button small" type="button" data-action="open-report-email">邮件草稿</button>
+            <button class="button small" type="button" data-action="export-monthly-report">导出文本</button>
+          </div>
+        </div>
+        <textarea class="report-textarea" readonly>${escapeHtml(monthlyReportText(report))}</textarea>
+      </section>
+
+      <section class="panel">
+        <div class="simple-note-grid">
+          <div class="note-box"><strong>现在怎么用</strong><br>每月会计录完数字后，申报负责人打开本页，点“复制月报”，直接发到邮件或微信群。</div>
+          <div class="note-box"><strong>邮件收件人</strong><br>当前默认发给：${escapeHtml(REPORT_EMAILS.join("、") || "待设置")}。点“邮件草稿”会自动填好标题和正文。</div>
+          <div class="note-box"><strong>自动发送怎么做</strong><br>后续接腾讯云定时任务，每月固定一天自动生成并发送。需要公司的发件邮箱或企业微信群机器人。</div>
+          <div class="note-box"><strong>建议时间</strong><br>每月 5 日前录入上月研发投入，每月 6 日上午发简报，提醒杭州和深圳是否需要调整费用归集。</div>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function buildMonthlyReportData() {
+  const projects = db.projects.filter((project) => isBalanceProject(project) && (ui.year === "all" || project.year === ui.year));
+  const entityRows = db.entities.map((entity) => {
+    const entityProjects = projects.filter((project) => project.entityId === entity.id);
+    const row = entityProjects.reduce(
+      (acc, project) => {
+        const aggregate = aggregateProject(project);
+        acc.target += Number(project.threshold || 0);
+        acc.collected += aggregate.total;
+        acc.gap += aggregate.gap;
+        acc.declared += fundingRequested(project);
+        acc.received += Number(project.received || 0);
+        acc.monthInput += monthlyProjectAmount(project, ui.month);
+        if (aggregate.risk === "high") acc.highRisk += 1;
+        if (aggregate.risk === "mid") acc.midRisk += 1;
+        return acc;
+      },
+      { entity, projects: entityProjects.length, target: 0, collected: 0, gap: 0, declared: 0, received: 0, monthInput: 0, highRisk: 0, midRisk: 0 }
+    );
+    row.investmentProgress = row.target ? row.collected / row.target : 0;
+    row.fundingProgress = row.declared ? row.received / row.declared : 0;
+    row.advice = reportEntityAdvice(row);
+    return row;
+  });
+  const riskProjects = projects
+    .map((project) => ({ project, aggregate: aggregateProject(project), entity: entityById(project.entityId) }))
+    .filter((row) => row.aggregate.gap > 0 || row.aggregate.risk !== "low")
+    .sort((a, b) => {
+      const riskScore = { high: 3, mid: 2, low: 1 };
+      return (riskScore[b.aggregate.risk] - riskScore[a.aggregate.risk]) || (b.aggregate.gap - a.aggregate.gap);
+    })
+    .slice(0, 6);
+  const totalTarget = entityRows.reduce((sum, row) => sum + row.target, 0);
+  const totalCollected = entityRows.reduce((sum, row) => sum + row.collected, 0);
+  const totalGap = entityRows.reduce((sum, row) => sum + row.gap, 0);
+  const totalDeclared = entityRows.reduce((sum, row) => sum + row.declared, 0);
+  const totalReceived = entityRows.reduce((sum, row) => sum + row.received, 0);
+  const monthInput = entityRows.reduce((sum, row) => sum + row.monthInput, 0);
+  const priorityEntity = entityRows
+    .filter((row) => row.target && row.gap > 0)
+    .sort((a, b) => b.gap - a.gap)[0];
+  const conclusion = totalGap <= 0
+    ? "目前两地研发投入均已达到已录入项目要求，继续按月跟踪即可。"
+    : `${priorityEntity?.entity.name || "两地"}研发投入仍有主要缺口，需优先关注费用归集。`;
+  const nextAction = priorityEntity
+    ? `下个月做账时，优先确认新增研发支出能否合规归集到${priorityEntity.entity.name}，当前缺口 ${wan(priorityEntity.gap)} 万元。`
+    : "保持每月录入，申报负责人复核项目归属和材料节点。";
+  return {
+    month: ui.month,
+    projects,
+    entityRows,
+    riskProjects,
+    upcomingItems: buildMonthlyReportUpcomingItems(projects),
+    totalTarget,
+    totalCollected,
+    totalGap,
+    totalDeclared,
+    totalReceived,
+    monthInput,
+    conclusion,
+    nextAction
+  };
+}
+
+function monthlyProjectAmount(project, month) {
+  return db.expenses
+    .filter((expense) => (expense.reviewMonth || expense.date || "").slice(0, 7) === month)
+    .reduce((sum, expense) => sum + contributionForProject(expense, project.id), 0);
+}
+
+function reportEntityAdvice(row) {
+  if (!row.target) return "先设置项目目标";
+  if (row.gap <= 0) return "研发投入已满足，继续保留凭证和辅助账";
+  if (row.investmentProgress < 0.7) return `优先补${row.entity.short}端投入`;
+  return `继续补${row.entity.short}端缺口`;
+}
+
+function buildMonthlyReportUpcomingItems(projects) {
+  const manual = db.reminders
+    .filter((reminder) => reminder.status !== "已完成")
+    .map((reminder) => ({
+      title: reminder.title,
+      dueDate: reminder.dueDate,
+      project: projectById(reminder.projectId),
+      detail: reminder.detail || "按提醒事项准备材料",
+      days: dateDiffDays(reminder.dueDate)
+    }));
+  const projectItems = projects
+    .map((project) => {
+      const aggregate = aggregateProject(project);
+      return {
+        title: `${project.name}材料节点`,
+        dueDate: project.materialDeadline,
+        project,
+        detail: `研发投入缺口 ${wan(aggregate.gap)} 万，达标率 ${pct(aggregate.progress)}`,
+        days: dateDiffDays(project.materialDeadline)
+      };
+    })
+    .filter((item) => Number.isFinite(item.days));
+  const items = [...manual, ...projectItems]
+    .filter((item) => item.days <= 60)
+    .sort((a, b) => a.days - b.days);
+  return (items.length ? items : [...manual, ...projectItems].sort((a, b) => a.days - b.days)).slice(0, 6);
+}
+
+function renderReportEntityTable(report) {
+  return `
+    <div class="table-wrap">
+      <table class="data-table simple-table">
+        <thead>
+          <tr>
+            <th>主体</th>
+            <th>项目数</th>
+            <th>政府要求研发投入</th>
+            <th>当前研发投入</th>
+            <th>研发投入缺口</th>
+            <th>本月新增</th>
+            <th>补贴到账率</th>
+            <th>建议</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${report.entityRows.map((row) => `
+            <tr>
+              <td><span class="entity-badge ${entityColor(row.entity.id)}">${row.entity.short}</span> <strong>${escapeHtml(row.entity.name)}</strong></td>
+              <td>${row.projects}</td>
+              <td>${wan(row.target)} 万</td>
+              <td>${wan(row.collected)} 万</td>
+              <td><strong class="${row.gap > 0 ? "danger-text" : "money-green"}">${wan(row.gap)} 万</strong></td>
+              <td>${wan(row.monthInput)} 万</td>
+              <td>${renderRatioCell("到账 / 申请", row.received, row.declared, `到账 ${wan(row.received)} 万 / 申请 ${wan(row.declared)} 万`)}</td>
+              <td>${escapeHtml(row.advice)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderReportRiskProjectTable(report) {
+  if (!report.riskProjects.length) return '<div class="empty-state">暂无明显项目风险，继续按月录入即可</div>';
+  return `
+    <div class="table-wrap">
+      <table class="data-table simple-table">
+        <thead>
+          <tr>
+            <th>项目</th>
+            <th>主体</th>
+            <th>研发投入缺口</th>
+            <th>研发达标率</th>
+            <th>材料截止</th>
+            <th>下一步</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${report.riskProjects.map(({ project, aggregate, entity }) => `
+            <tr>
+              <td><strong>${escapeHtml(project.name)}</strong><div class="muted">${escapeHtml(project.code)} · ${escapeHtml(project.researchDirection || "待确认")}</div></td>
+              <td><span class="entity-badge ${entityColor(project.entityId)}">${entity.short}</span> ${escapeHtml(entity.name)}</td>
+              <td><strong class="${aggregate.gap > 0 ? "danger-text" : "money-green"}">${wan(aggregate.gap)} 万</strong></td>
+              <td>${renderRatioCell("支出 / 要求", aggregate.total, project.threshold, `还差 ${wan(aggregate.gap)} 万`)}</td>
+              <td>${escapeHtml(project.materialDeadline || "待确认")}</td>
+              <td>${escapeHtml(project.nextStep || project.nextProcess || "申报负责人复核费用归属和材料准备")}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderReportUpcomingTable(report) {
+  if (!report.upcomingItems.length) return '<div class="empty-state">暂无近期材料节点</div>';
+  return `
+    <div class="table-wrap">
+      <table class="data-table simple-table">
+        <thead>
+          <tr>
+            <th>事项</th>
+            <th>关联项目</th>
+            <th>截止日</th>
+            <th>剩余时间</th>
+            <th>说明</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${report.upcomingItems.map((item) => `
+            <tr>
+              <td><strong>${escapeHtml(item.title)}</strong></td>
+              <td>${escapeHtml(item.project?.name || "公共事项")}</td>
+              <td>${escapeHtml(item.dueDate || "待确认")}</td>
+              <td>${item.days < 0 ? `<strong class="danger-text">逾期 ${Math.abs(item.days)} 天</strong>` : `${item.days} 天`}</td>
+              <td>${escapeHtml(item.detail)}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function monthlyReportText(report = buildMonthlyReportData()) {
+  const entityLines = report.entityRows.map((row) =>
+    `- ${row.entity.name}：政府要求 ${wan(row.target)} 万，当前研发投入 ${wan(row.collected)} 万，缺口 ${wan(row.gap)} 万，本月新增 ${wan(row.monthInput)} 万，补贴到账率 ${row.declared ? pct(row.received / row.declared) : "0%"}。建议：${row.advice}。`
+  );
+  const riskLines = report.riskProjects.length
+    ? report.riskProjects.map(({ project, aggregate, entity }) =>
+      `- ${project.name}（${entity.name}）：研发投入缺口 ${wan(aggregate.gap)} 万，达标率 ${pct(aggregate.progress)}，材料截止 ${project.materialDeadline || "待确认"}。`
+    )
+    : ["- 暂无明显项目风险。"];
+  const upcomingLines = report.upcomingItems.length
+    ? report.upcomingItems.map((item) => {
+      const dayText = item.days < 0 ? `已逾期 ${Math.abs(item.days)} 天` : `剩余 ${item.days} 天`;
+      return `- ${item.title}：${item.dueDate || "待确认"}，${dayText}，${item.detail}`;
+    })
+    : ["- 暂无近期材料节点。"];
+  return [
+    `研发补贴平衡月报（${report.month}）`,
+    "",
+    "一、本月结论",
+    report.conclusion,
+    report.nextAction,
+    "",
+    "二、两地主体情况",
+    ...entityLines,
+    "",
+    "三、重点项目风险",
+    ...riskLines,
+    "",
+    "四、近期材料节点",
+    ...upcomingLines,
+    "",
+    "五、固定动作",
+    "- 会计：每月做账后录入本月新增研发投入。",
+    "- 申报负责人：审核费用应归到杭州微新还是深圳微智，以及对应项目是否正确。",
+    "- 管理层：重点看研发投入缺口，避免因投入不足导致补贴无法到位。"
+  ].join("\n");
 }
 
 function renderWorkflowStep(number, title, copy, state) {
@@ -3571,6 +3905,46 @@ function exportExpenses() {
   downloadCsv("研发费用台账.csv", rows);
 }
 
+function copyMonthlyReport() {
+  const text = monthlyReportText();
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast("月报已复制，可以粘贴到邮件或微信"))
+      .catch(() => fallbackCopyText(text));
+    return;
+  }
+  fallbackCopyText(text);
+}
+
+function fallbackCopyText(text) {
+  const input = document.createElement("textarea");
+  input.value = text;
+  input.setAttribute("readonly", "");
+  input.style.position = "fixed";
+  input.style.left = "-9999px";
+  document.body.appendChild(input);
+  input.select();
+  document.execCommand("copy");
+  input.remove();
+  showToast("月报已复制，可以粘贴到邮件或微信");
+}
+
+function exportMonthlyReport() {
+  downloadText(`${ui.month}-研发补贴平衡月报.txt`, monthlyReportText());
+}
+
+function openMonthlyReportEmail() {
+  if (!REPORT_EMAILS.length) {
+    showToast("还没有设置月报收件邮箱");
+    return;
+  }
+  const subject = `研发补贴平衡月报（${ui.month}）`;
+  const body = monthlyReportText();
+  const mailto = `mailto:${REPORT_EMAILS.map(encodeURIComponent).join(",")}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailto;
+  showToast("已打开邮件草稿，确认后点发送");
+}
+
 function downloadCsv(filename, rows) {
   const csv = rows.map((row) => row.map((cell) => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
   const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
@@ -3585,6 +3959,19 @@ function downloadCsv(filename, rows) {
   showToast("CSV 已导出");
 }
 
+function downloadText(filename, text) {
+  const blob = new Blob([`\uFEFF${text}`], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+  showToast("月报文本已导出");
+}
+
 function handleAction(action, target) {
   const actions = {
     "add-expense": openExpenseModal,
@@ -3597,6 +3984,9 @@ function handleAction(action, target) {
     "run-legacy-import": runLegacyProjectImport,
     "export-summary": exportSummary,
     "export-expenses": exportExpenses,
+    "copy-monthly-report": copyMonthlyReport,
+    "export-monthly-report": exportMonthlyReport,
+    "open-report-email": openMonthlyReportEmail,
     "open-project-modal": openProjectModal,
     "save-project": saveProjectFromModal,
     "save-monthly-fixed": saveMonthlyFixedNumbers,
