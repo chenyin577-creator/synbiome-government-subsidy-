@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>研发补贴平衡台账</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="主导航">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <div>
+            <strong>微新微智</strong>
+            <small>研发补贴平衡台账</small>
+          </div>
+        </div>
+
+        <nav class="nav-list" id="navList"></nav>
+
+        <div class="sidebar-footer">
+          <label class="field-label" for="sidebarEntity">当前法人主体</label>
+          <select id="sidebarEntity" class="control full">
+            <option value="all">全部主体</option>
+            <option value="hz">杭州微新</option>
+            <option value="sz">深圳微智</option>
+          </select>
+          <div class="account-card">
+            <div class="avatar" id="accountAvatar" aria-hidden="true">本</div>
+            <div>
+              <strong id="accountName">本地演示</strong>
+              <small id="accountRole">配置云端后可登录同步</small>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <div class="workspace">
+        <header class="topbar">
+          <div>
+            <h1 id="pageTitle">平衡总览</h1>
+            <p id="pageSub">杭州与深圳研发投入是否够用</p>
+          </div>
+          <div class="top-actions">
+            <button class="icon-button" type="button" data-nav-target="monthly" title="每月录入">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v11m0 0 4-4m-4 4-4-4M5 17v2a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-2"/></svg>
+              <span>每月录入</span>
+            </button>
+            <button class="icon-button" type="button" data-action="export-summary" title="导出汇总">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg>
+              <span>导出汇总</span>
+            </button>
+            <button class="icon-button" type="button" data-action="sync-now" title="刷新同步">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 0 1-15.5 6.2M3 12A9 9 0 0 1 18.5 5.8M18 3v4h-4M6 21v-4h4"/></svg>
+              <span id="syncStatus">本地模式</span>
+            </button>
+            <button class="icon-button" id="logoutButton" type="button" data-action="logout" title="退出登录" hidden>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+              <span>退出</span>
+            </button>
+            <button class="icon-button ghost" type="button" data-action="reset-data" title="重置演示数据">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.34-5.66M4 4v5h5"/></svg>
+            </button>
+          </div>
+        </header>
+
+        <section class="filter-strip" aria-label="筛选">
+          <div class="segmented" id="entityTabs">
+            <button type="button" data-entity="all" class="active">全部</button>
+            <button type="button" data-entity="hz">杭州微新</button>
+            <button type="button" data-entity="sz">深圳微智</button>
+          </div>
+          <label class="inline-field">
+            <span>申报年度</span>
+            <select id="yearFilter" class="control">
+              <option value="all" selected>全部年度</option>
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+            </select>
+          </label>
+          <label class="search-field">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Z"/></svg>
+            <input id="globalSearch" type="search" placeholder="搜索项目、主体、研究方向" />
+          </label>
+          <button class="button primary" type="button" data-action="open-project-modal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            新增项目
+          </button>
+        </section>
+
+        <main id="mainContent" class="content" tabindex="-1"></main>
+      </div>
+    </div>
+
+    <div id="modalLayer" class="modal-layer" hidden></div>
+    <div id="authLayer" class="auth-layer" hidden></div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+    <script src="./config.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
