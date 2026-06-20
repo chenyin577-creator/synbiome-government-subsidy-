@@ -1347,7 +1347,7 @@ button {
 
 .action-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 12px;
   padding: 16px;
 }
@@ -1411,6 +1411,135 @@ button {
   background: #fbfcfd;
   color: var(--text);
   font: 13px/1.8 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.budget-input {
+  width: 180px;
+}
+
+.smart-action-list {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.smart-action-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-left-width: 4px;
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.smart-action-card.high {
+  border-left-color: var(--red);
+}
+
+.smart-action-card.mid {
+  border-left-color: var(--amber);
+}
+
+.smart-action-card.low {
+  border-left-color: var(--green);
+}
+
+.smart-rank {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #eef4fb;
+  color: #24405a;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+.smart-action-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.smart-action-card p {
+  margin: 8px 0 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.smart-action-card small {
+  display: block;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.smart-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 750;
+  white-space: nowrap;
+}
+
+.smart-tag.high {
+  color: #ba2f2f;
+  background: var(--red-soft);
+}
+
+.smart-tag.mid {
+  color: #9a610d;
+  background: var(--amber-soft);
+}
+
+.smart-tag.low {
+  color: #0f7b4e;
+  background: var(--green-soft);
+}
+
+.quality-list {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+}
+
+.quality-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: #fff;
+}
+
+.quality-item strong,
+.quality-item span,
+.quality-item small {
+  display: block;
+}
+
+.quality-item span {
+  margin-top: 6px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.quality-item small {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .toast {
