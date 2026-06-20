@@ -1,6 +1,7 @@
 const STORAGE_KEY = "research-subsidy-ledger-v1";
 const SESSION_KEY = "research-subsidy-ledger-session-v1";
-const TODAY = new Date("2026-06-18T00:00:00");
+const TODAY = new Date();
+TODAY.setHours(0, 0, 0, 0);
 const APP_CONFIG = window.SUBSIDY_APP_CONFIG || {};
 const CLOUD_ORG_ID = APP_CONFIG.organizationId || "micro-wisdom-balance";
 const CLOUD_TABLE = APP_CONFIG.cloudbaseCollection || "ledger_snapshots";
@@ -31,6 +32,7 @@ const cloud = {
 const icons = {
   dashboard: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h6V4H4v9Zm0 7h6v-4H4v4Zm10 0h6v-9h-6v9Zm0-12h6V4h-6v4Z"/></svg>',
   monthly: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3v4M17 3v4M4 8h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Zm4 8h3m-3 4h6"/></svg>',
+  analysis: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Zm6 10 1 2.4 2.4 1-2.4 1L18 20l-1-2.6-2.4-1 2.4-1L18 13ZM5 14l.8 2 2 .8-2 .8L5 20l-.8-2.4-2-.8 2-.8L5 14Z"/></svg>',
   intake: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4V4Zm4 4h8M8 12h8M8 16h5M18 3v4M6 3v4"/></svg>',
   projects: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16M4 12h16M4 19h16M7 5v14"/></svg>',
   report: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h12v18H6V3Zm3 5h6M9 12h6M9 16h4M16 18l2 2 4-5"/></svg>',
@@ -44,6 +46,7 @@ const icons = {
 
 const navItems = [
   ["dashboard", "平衡总览", "杭州与深圳研发投入是否够用"],
+  ["analysis", "智能分析", "自动给出费用归集和风险处理建议"],
   ["monthly", "每月录入", "每月录入固定研发投入数字"],
   ["report", "月报简报", "每月给管理层看的简版汇报"],
   ["projects", "项目设置", "先设置项目目标，后续只录数字"]
@@ -462,6 +465,7 @@ const ui = {
   entity: "all",
   year: "all",
   month: "2025-05",
+  analysisBudget: 1000000,
   search: "",
   allocationExpenseId: null
 };
@@ -1214,6 +1218,7 @@ function render() {
   dom.pageSub.textContent = current?.[2] || "";
   const renderers = {
     dashboard: renderDashboard,
+    analysis: renderSmartAnalysis,
     monthly: renderMonthly,
     report: renderMonthlyReport,
     intake: renderProjectIntake,
@@ -1305,7 +1310,7 @@ function renderDashboard() {
       <section class="panel span-full executive-actions">
         <div class="panel-header">
           <div class="panel-title">
-            <h2>日常只做四件事</h2>
+            <h2>日常只做五件事</h2>
             <span class="count">简单版</span>
           </div>
         </div>
@@ -1322,8 +1327,12 @@ function renderDashboard() {
             <strong>3. 看缺口分配</strong>
             <span>优先把后续研发支出安排到达标率低、缺口大的主体和项目。</span>
           </button>
+          <button type="button" class="action-tile" data-nav-target="analysis">
+            <strong>4. 看智能分析</strong>
+            <span>自动列出最该处理的缺口、待确认费用、分摊和材料风险。</span>
+          </button>
           <button type="button" class="action-tile" data-nav-target="report">
-            <strong>4. 发月报提醒</strong>
+            <strong>5. 发月报提醒</strong>
             <span>每月生成一份简版汇报，复制到邮件或微信群，提醒两地费用是否够。</span>
           </button>
         </div>
@@ -1586,6 +1595,335 @@ function renderMonthlyFixedTable(projects) {
       </div>
     </form>
   `;
+}
+
+function renderSmartAnalysis() {
+  const analysis = buildSmartAnalysisData();
+  return `
+    <div class="page-stack">
+      <section class="monthly-hero">
+        <div>
+          <h2>智能分析</h2>
+          <p>系统基于研发投入缺口、材料截止日、待确认费用和分摊状态，自动生成下一步处理建议。</p>
+        </div>
+        <div class="month-controls">
+          <label class="inline-field">
+            <span>假设下月新增研发投入(元)</span>
+            <input id="analysisBudgetInput" class="control budget-input" type="number" min="0" step="10000" value="${Number(ui.analysisBudget || 0)}">
+          </label>
+          <button class="button primary" type="button" data-action="apply-analysis-budget">重新分析</button>
+        </div>
+      </section>
+
+      <div class="metric-row">
+        ${renderTopMetric("优先处理事项", analysis.actions.length, "按风险和影响排序")}
+        ${renderTopMetric("待确认费用", `${wan(analysis.pendingTotal)} 万元`, `${analysis.pendingExpenses.length} 条需财务复核`)}
+        ${renderTopMetric("待分摊费用", `${wan(analysis.unallocatedTotal)} 万元`, `${analysis.unallocatedExpenses.length} 条需负责人确认`)}
+        ${renderTopMetric("30天内节点", analysis.dueSoon.length, "材料或审计节点")}
+      </div>
+
+      <section class="panel report-panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>系统判断</h2><span class="count">AI native</span></div>
+        </div>
+        <div class="report-conclusion">
+          <strong>${escapeHtml(analysis.conclusion)}</strong>
+          <span>${escapeHtml(analysis.nextMove)}</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>下一步行动清单</h2><span class="count">${analysis.actions.length}</span></div>
+          <button class="button small" type="button" data-action="copy-analysis-summary">复制建议</button>
+        </div>
+        ${renderSmartActionList(analysis.actions)}
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>费用归集模拟</h2><span class="count">${wan(ui.analysisBudget)} 万</span></div>
+          <button class="button small" type="button" data-nav-target="monthly">去录入本月数字</button>
+        </div>
+        ${renderAllocationPlanTable(analysis)}
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>账表导入后的数据质量检查</h2><span class="count">${analysis.qualityItems.length}</span></div>
+        </div>
+        ${renderDataQualityList(analysis.qualityItems)}
+      </section>
+    </div>
+  `;
+}
+
+function buildSmartAnalysisData() {
+  const projects = db.projects.filter((project) => isBalanceProject(project) && (ui.year === "all" || project.year === ui.year));
+  const projectRows = projects.map((project) => ({
+    project,
+    entity: entityById(project.entityId),
+    aggregate: aggregateProject(project),
+    days: dateDiffDays(project.materialDeadline)
+  }));
+  const scopedExpenses = db.expenses.filter((expense) => {
+    if (ui.entity !== "all" && expense.entityId !== ui.entity) return false;
+    if (ui.year !== "all" && !(expense.date || "").startsWith(ui.year)) return false;
+    return true;
+  });
+  const pendingExpenses = scopedExpenses.filter((expense) => expense.recognitionStatus === "待确认口径");
+  const unallocatedExpenses = scopedExpenses.filter((expense) => expense.allocationStatus === "待分摊" || (expense.category === "人员人工" && expense.entityId === "sz" && Array.isArray(expense.allocations) && !expense.allocations.length));
+  const pendingTotal = pendingExpenses.reduce((sum, expense) => sum + Number(expense.eligibleAmount || expense.amount || 0), 0);
+  const unallocatedTotal = unallocatedExpenses.reduce((sum, expense) => sum + Number(expense.eligibleAmount || expense.amount || 0), 0);
+  const dueSoon = buildMonthlyReportUpcomingItems(projects).filter((item) => item.days <= 30);
+  const allocationPlan = buildAllocationPlan(projectRows, Number(ui.analysisBudget || 0));
+  const actions = buildSmartActions({ projectRows, pendingExpenses, unallocatedExpenses, pendingTotal, unallocatedTotal, dueSoon });
+  const qualityItems = buildDataQualityItems({ projectRows, pendingExpenses, unallocatedExpenses, scopedExpenses });
+  const worstEntity = buildMonthlyReportData().entityRows
+    .filter((row) => row.target && row.gap > 0)
+    .sort((a, b) => b.gap - a.gap)[0];
+  const conclusion = worstEntity
+    ? `${worstEntity.entity.name}仍是当前主要缺口，缺口 ${wan(worstEntity.gap)} 万，达标率 ${pct(worstEntity.investmentProgress)}。`
+    : "当前已录入的资金类项目没有研发投入缺口，重点转向材料节点和到账跟踪。";
+  const nextMove = actions[0]
+    ? `优先处理：${actions[0].title}。${actions[0].nextStep}`
+    : "维持每月导入明细账、负责人审核、月报发送三件固定动作。";
+  return {
+    projects,
+    projectRows,
+    pendingExpenses,
+    unallocatedExpenses,
+    pendingTotal,
+    unallocatedTotal,
+    dueSoon,
+    allocationPlan,
+    actions,
+    qualityItems,
+    conclusion,
+    nextMove
+  };
+}
+
+function buildSmartActions({ projectRows, pendingExpenses, unallocatedExpenses, pendingTotal, unallocatedTotal, dueSoon }) {
+  const actions = [];
+  projectRows.forEach(({ project, entity, aggregate, days }) => {
+    if (aggregate.gap <= 0) return;
+    if (aggregate.progress < 0.6 || days <= 30) {
+      actions.push({
+        level: "high",
+        title: `补足${entity.name}项目投入`,
+        owner: "会计 + 申报负责人",
+        detail: `${project.name}缺口 ${wan(aggregate.gap)} 万，达标率 ${pct(aggregate.progress)}，材料截止 ${project.materialDeadline || "待确认"}。`,
+        nextStep: `下月新增研发费用优先判断能否归集到${project.name}，并补齐项目依据。`,
+        score: 100000000 + aggregate.gap
+      });
+      return;
+    }
+    if (aggregate.progress < 0.85) {
+      actions.push({
+        level: "mid",
+        title: `继续补${entity.short}端研发投入`,
+        owner: "会计",
+        detail: `${project.name}仍差 ${wan(aggregate.gap)} 万，尚未达到安全线。`,
+        nextStep: "每月明细账导入后，先匹配到该项目，再由负责人复核。",
+        score: 50000000 + aggregate.gap
+      });
+    }
+  });
+  if (unallocatedExpenses.length) {
+    actions.push({
+      level: "high",
+      title: "分摊深圳研发人员费用",
+      owner: "申报负责人",
+      detail: `${unallocatedExpenses.length} 条费用待分摊，金额 ${wan(unallocatedTotal)} 万。`,
+      nextStep: "按工时或负责人确认比例分摊到深圳各研发课题。",
+      score: 120000000 + unallocatedTotal
+    });
+  }
+  if (pendingExpenses.length) {
+    actions.push({
+      level: "high",
+      title: "复核待确认研发口径",
+      owner: "财务",
+      detail: `${pendingExpenses.length} 条费用待确认，金额 ${wan(pendingTotal)} 万。`,
+      nextStep: "判断是否符合研发费用口径，确认后再计入达标率。",
+      score: 110000000 + pendingTotal
+    });
+  }
+  dueSoon.slice(0, 4).forEach((item) => {
+    actions.push({
+      level: item.days < 0 ? "high" : "mid",
+      title: item.days < 0 ? "处理逾期材料节点" : "准备近期材料节点",
+      owner: "申报负责人",
+      detail: `${item.title}，${item.dueDate || "待确认"}，${item.days < 0 ? `已逾期 ${Math.abs(item.days)} 天` : `剩余 ${item.days} 天`}。`,
+      nextStep: item.detail,
+      score: (item.days < 0 ? 90000000 : 40000000) + Math.max(0, 30 - item.days)
+    });
+  });
+  return actions.sort((a, b) => b.score - a.score).slice(0, 10);
+}
+
+function buildAllocationPlan(projectRows, budget) {
+  let remaining = Math.max(Number(budget || 0), 0);
+  return projectRows
+    .filter((row) => row.aggregate.gap > 0)
+    .sort((a, b) => {
+      const riskScore = { high: 3, mid: 2, low: 1 };
+      return (riskScore[b.aggregate.risk] - riskScore[a.aggregate.risk])
+        || (a.days - b.days)
+        || (b.aggregate.gap - a.aggregate.gap);
+    })
+    .map((row) => {
+      const suggested = Math.min(row.aggregate.gap, remaining);
+      remaining -= suggested;
+      return { ...row, suggested: Math.max(suggested, 0), afterGap: Math.max(row.aggregate.gap - suggested, 0) };
+    });
+}
+
+function buildDataQualityItems({ projectRows, pendingExpenses, unallocatedExpenses, scopedExpenses }) {
+  const items = [];
+  projectRows.forEach(({ project, aggregate }) => {
+    const missing = [];
+    if (!project.researchDirection) missing.push("研究方向");
+    if (!project.approvalDate || project.approvalDate === "待确认") missing.push("获批日期");
+    if (!project.materialDeadline) missing.push("材料截止日");
+    if (!project.nextProcess) missing.push("后续流程");
+    if (!project.materialNeeds) missing.push("材料清单");
+    if (missing.length) {
+      items.push({
+        level: "mid",
+        title: `${project.name}基础信息不完整`,
+        detail: `缺少：${missing.join("、")}。`,
+        action: "负责人补齐后，月报和风险判断会更准确。"
+      });
+    }
+    if (aggregate.pending > 0) {
+      items.push({
+        level: "high",
+        title: `${project.name}存在待确认金额`,
+        detail: `待确认金额 ${wan(aggregate.pending)} 万，当前已暂计入投入但需要财务认定。`,
+        action: "财务确认后再作为稳定口径进入月报。"
+      });
+    }
+  });
+  const unmatched = scopedExpenses.filter((expense) => !expense.projectId && (!Array.isArray(expense.allocations) || !expense.allocations.length));
+  if (unallocatedExpenses.length) {
+    items.push({
+      level: "high",
+      title: "存在未分摊人员费用",
+      detail: `${unallocatedExpenses.length} 条，合计 ${wan(unallocatedExpenses.reduce((sum, item) => sum + Number(item.eligibleAmount || item.amount || 0), 0))} 万。`,
+      action: "深圳研发人员费用应按课题分摊，否则无法准确判断各课题达标率。"
+    });
+  }
+  if (pendingExpenses.length) {
+    items.push({
+      level: "high",
+      title: "存在待确认研发费用口径",
+      detail: `${pendingExpenses.length} 条，合计 ${wan(pendingExpenses.reduce((sum, item) => sum + Number(item.eligibleAmount || item.amount || 0), 0))} 万。`,
+      action: "建议每月导入后由财务当天完成口径确认。"
+    });
+  }
+  if (unmatched.length) {
+    items.push({
+      level: "mid",
+      title: "存在未匹配项目的费用",
+      detail: `${unmatched.length} 条费用没有项目归属。`,
+      action: "导入明细账后优先补项目编号或归属项目。"
+    });
+  }
+  if (!items.length) {
+    items.push({
+      level: "low",
+      title: "数据质量暂未发现明显问题",
+      detail: "项目关键字段、费用归属和研发口径当前可用于月报判断。",
+      action: "继续保持每月导入和负责人审核。"
+    });
+  }
+  return items;
+}
+
+function renderSmartActionList(actions) {
+  if (!actions.length) return '<div class="empty-state">暂无需要优先处理的事项</div>';
+  return `
+    <div class="smart-action-list">
+      ${actions.map((item, index) => `
+        <article class="smart-action-card ${item.level}">
+          <div class="smart-rank">${index + 1}</div>
+          <div>
+            <div class="smart-action-heading">
+              <strong>${escapeHtml(item.title)}</strong>
+              ${smartLevelTag(item.level)}
+            </div>
+            <p>${escapeHtml(item.detail)}</p>
+            <small>负责人：${escapeHtml(item.owner)}；下一步：${escapeHtml(item.nextStep)}</small>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderAllocationPlanTable(analysis) {
+  if (!analysis.allocationPlan.length) return '<div class="empty-state">暂无研发投入缺口，不需要模拟分配</div>';
+  return `
+    <div class="table-wrap">
+      <table class="data-table simple-table">
+        <thead>
+          <tr>
+            <th>建议顺序</th>
+            <th>项目</th>
+            <th>主体</th>
+            <th>当前缺口</th>
+            <th>建议分配</th>
+            <th>分配后缺口</th>
+            <th>原因</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${analysis.allocationPlan.map((row, index) => `
+            <tr>
+              <td>${index + 1}</td>
+              <td><strong>${escapeHtml(row.project.name)}</strong><div class="muted">${escapeHtml(row.project.code)}</div></td>
+              <td><span class="entity-badge ${entityColor(row.project.entityId)}">${row.entity.short}</span> ${escapeHtml(row.entity.name)}</td>
+              <td><strong class="danger-text">${wan(row.aggregate.gap)} 万</strong></td>
+              <td><strong>${wan(row.suggested)} 万</strong></td>
+              <td>${wan(row.afterGap)} 万</td>
+              <td>${escapeHtml(allocationReason(row))}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderDataQualityList(items) {
+  return `
+    <div class="quality-list">
+      ${items.map((item) => `
+        <article class="quality-item ${item.level}">
+          ${smartLevelTag(item.level)}
+          <div>
+            <strong>${escapeHtml(item.title)}</strong>
+            <span>${escapeHtml(item.detail)}</span>
+            <small>${escapeHtml(item.action)}</small>
+          </div>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function smartLevelTag(level) {
+  const labels = { high: "高优先级", mid: "中优先级", low: "低风险" };
+  return `<span class="smart-tag ${level}">${labels[level] || "提示"}</span>`;
+}
+
+function allocationReason(row) {
+  if (row.aggregate.risk === "high") return "风险高，或材料节点已临近。";
+  if (row.days <= 30) return `材料节点剩余 ${row.days} 天。`;
+  if (row.aggregate.progress < 0.7) return "研发投入达标率偏低。";
+  return "仍有研发投入缺口。";
 }
 
 function renderMonthlyReport() {
@@ -4027,6 +4365,33 @@ function exportMonthlyReport() {
   downloadText(`${ui.month}-研发补贴平衡月报.txt`, monthlyReportText());
 }
 
+function applyAnalysisBudget() {
+  const value = Number(document.getElementById("analysisBudgetInput")?.value || 0);
+  ui.analysisBudget = Math.max(value, 0);
+  render();
+  showToast("已按新的预计投入重新分析");
+}
+
+function copyAnalysisSummary() {
+  const analysis = buildSmartAnalysisData();
+  const text = [
+    "研发补贴台账智能分析建议",
+    "",
+    analysis.conclusion,
+    analysis.nextMove,
+    "",
+    "优先行动：",
+    ...analysis.actions.map((item, index) => `${index + 1}. [${item.level === "high" ? "高" : item.level === "mid" ? "中" : "低"}] ${item.title}；负责人：${item.owner}；原因：${item.detail}；下一步：${item.nextStep}`)
+  ].join("\n");
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => showToast("智能分析建议已复制"))
+      .catch(() => fallbackCopyText(text));
+    return;
+  }
+  fallbackCopyText(text);
+}
+
 function openMonthlyReportEmail() {
   if (!REPORT_EMAILS.length) {
     showToast("还没有设置月报收件邮箱");
@@ -4082,6 +4447,8 @@ function handleAction(action, target) {
     "export-monthly-report": exportMonthlyReport,
     "open-monthly-report-html": openMonthlyReportHtml,
     "open-report-email": openMonthlyReportEmail,
+    "apply-analysis-budget": applyAnalysisBudget,
+    "copy-analysis-summary": copyAnalysisSummary,
     "open-project-modal": openProjectModal,
     "save-project": saveProjectFromModal,
     "save-monthly-fixed": saveMonthlyFixedNumbers,
