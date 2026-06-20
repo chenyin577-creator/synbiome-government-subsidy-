@@ -1943,7 +1943,7 @@ function renderMonthlyReport() {
             </select>
           </label>
           <button class="button" type="button" data-action="open-report-email">邮件草稿</button>
-          <button class="button" type="button" data-action="open-monthly-report-html">HTML 简报</button>
+          <button class="button" type="button" data-action="open-monthly-report-html">管理层简报</button>
           <button class="button" type="button" data-action="export-monthly-report">导出文本</button>
           <button class="button primary" type="button" data-action="copy-monthly-report">复制月报</button>
         </div>
@@ -1993,7 +1993,7 @@ function renderMonthlyReport() {
           <div class="panel-tools">
             <button class="button small" type="button" data-action="copy-monthly-report">复制月报</button>
             <button class="button small" type="button" data-action="open-report-email">邮件草稿</button>
-            <button class="button small" type="button" data-action="open-monthly-report-html">HTML 简报</button>
+            <button class="button small" type="button" data-action="open-monthly-report-html">管理层简报</button>
             <button class="button small" type="button" data-action="export-monthly-report">导出文本</button>
           </div>
         </div>
@@ -2002,9 +2002,9 @@ function renderMonthlyReport() {
 
       <section class="panel">
         <div class="simple-note-grid">
-          <div class="note-box"><strong>现在怎么用</strong><br>每月会计录完数字后，申报负责人打开本页，点“复制月报”，直接发到邮件或微信群。</div>
+          <div class="note-box"><strong>现在怎么用</strong><br>每月会计录完数字后，申报负责人打开本页。明细给后台人员看，点“管理层简报”给 CEO/CFO 看。</div>
           <div class="note-box"><strong>邮件收件人</strong><br>当前默认发给：${escapeHtml(REPORT_EMAILS.join("、") || "待设置")}。点“邮件草稿”会自动填好标题和正文。</div>
-          <div class="note-box"><strong>自动发送怎么做</strong><br>后续接腾讯云定时任务，每月固定一天自动生成并发送。需要公司的发件邮箱或企业微信群机器人。</div>
+          <div class="note-box"><strong>自动发送怎么做</strong><br>后续接腾讯云定时任务，每月固定一天自动生成管理层简报并发送。需要公司的发件邮箱或企业微信群机器人。</div>
           <div class="note-box"><strong>建议时间</strong><br>每月 5 日前录入上月研发投入，每月 6 日上午发简报，提醒杭州和深圳是否需要调整费用归集。</div>
         </div>
       </section>
@@ -2253,27 +2253,33 @@ function monthlyReportText(report = buildMonthlyReportData()) {
 }
 
 function monthlyReportHtml(report = buildMonthlyReportData()) {
-  const riskRows = report.riskProjects.length
-    ? report.riskProjects.map(({ project, aggregate, entity }) => `
-      <tr>
-        <td><strong>${escapeHtml(project.name)}</strong><br><span>${escapeHtml(project.code)} · ${escapeHtml(project.researchDirection || "待确认")}</span></td>
-        <td>${escapeHtml(entity.name)}</td>
-        <td class="danger">${wan(aggregate.gap)} 万</td>
-        <td>${pct(aggregate.progress)}</td>
-        <td>${escapeHtml(project.materialDeadline || "待确认")}</td>
-      </tr>
-    `).join("")
-    : '<tr><td colspan="5" class="empty">暂无明显项目风险</td></tr>';
-  const upcomingRows = report.upcomingItems.length
-    ? report.upcomingItems.map((item) => `
-      <tr>
-        <td><strong>${escapeHtml(item.title)}</strong><br><span>${escapeHtml(item.project?.name || "公共事项")}</span></td>
-        <td>${escapeHtml(item.dueDate || "待确认")}</td>
-        <td>${item.days < 0 ? `<strong class="danger">逾期 ${Math.abs(item.days)} 天</strong>` : `${item.days} 天`}</td>
-        <td>${escapeHtml(item.detail)}</td>
-      </tr>
-    `).join("")
-    : '<tr><td colspan="4" class="empty">暂无近期材料节点</td></tr>';
+  const analysis = buildSmartAnalysisData();
+  const investmentRate = report.totalTarget ? report.totalCollected / report.totalTarget : 0;
+  const fundingRate = report.totalDeclared ? report.totalReceived / report.totalDeclared : 0;
+  const alert = executiveAlertLevel(report, analysis);
+  const alertText = {
+    high: "红色预警：研发投入或材料节点需要立即处理",
+    mid: "橙色提醒：仍有缺口，需本月跟进",
+    low: "绿色：当前无重大缺口，保持月度跟踪"
+  }[alert];
+  const keyActions = analysis.actions.slice(0, 3);
+  const actionItems = keyActions.length
+    ? keyActions.map((item) => `<li><strong>${escapeHtml(item.title)}</strong><span>${escapeHtml(item.detail)} ${escapeHtml(item.nextStep)}</span></li>`).join("")
+    : "<li><strong>维持月度更新</strong><span>当前没有需要管理层立即决策的事项，后台继续做明细账导入和负责人审核。</span></li>";
+  const entityCards = report.entityRows.map((row) => `
+    <article class="entity-card">
+      <div>
+        <strong>${escapeHtml(row.entity.name)}</strong>
+        <span>${row.projects} 个补贴项目</span>
+      </div>
+      <dl>
+        <div><dt>达标率</dt><dd>${row.target ? pct(row.collected / row.target) : "0%"}</dd></div>
+        <div><dt>缺口</dt><dd class="${row.gap > 0 ? "danger" : "ok"}">${wan(row.gap)} 万</dd></div>
+        <div><dt>到账率</dt><dd>${row.declared ? pct(row.received / row.declared) : "0%"}</dd></div>
+      </dl>
+      <p>${escapeHtml(row.advice)}</p>
+    </article>
+  `).join("");
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -2282,20 +2288,20 @@ function monthlyReportHtml(report = buildMonthlyReportData()) {
   <title>研发补贴平衡月报（${escapeHtml(report.month)}）</title>
   <style>
     body{margin:0;background:#eef4fb;color:#1f2933;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",Arial,sans-serif;}
-    .page{max-width:1040px;margin:0 auto;padding:34px 28px 46px;}
-    .hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;padding:28px;border-radius:18px;background:linear-gradient(135deg,#f8fbff,#eaf3ff);border:1px solid #dbe8f5;}
-    .brand{display:flex;align-items:center;gap:14px;margin-bottom:24px;color:#1556a8;}
-    .mark{width:52px;height:52px;display:grid;place-items:center;border-radius:14px;background:#fff;box-shadow:0 12px 28px rgba(31,112,214,.16)}
-    .mark svg{width:42px;height:42px}.mark path{fill:none;stroke:#1f70d6;stroke-linecap:round;stroke-linejoin:round}.ring{stroke-width:5.8}.curve{stroke-width:3.3;opacity:.9}.dna{stroke-width:2.4}
-    h1{margin:0;font-size:34px;letter-spacing:0;color:#16324f} .sub{margin:10px 0 0;color:#5d6f82;line-height:1.6}
+    .page{max-width:920px;margin:0 auto;padding:34px 28px 42px;}
+    .hero{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;padding:26px;border-radius:18px;background:linear-gradient(135deg,#f8fbff,#eaf3ff);border:1px solid #dbe8f5;}
+    .brand{display:flex;align-items:center;gap:14px;margin-bottom:20px;color:#1556a8;}
+    .mark{width:50px;height:50px;display:grid;place-items:center;border-radius:14px;background:#fff;box-shadow:0 12px 28px rgba(31,112,214,.16)}
+    .mark svg{width:40px;height:40px}.mark path{fill:none;stroke:#1f70d6;stroke-linecap:round;stroke-linejoin:round}.ring{stroke-width:5.8}.curve{stroke-width:3.3;opacity:.9}.dna{stroke-width:2.4}
+    h1{margin:0;font-size:32px;color:#16324f;letter-spacing:0}.sub{margin:10px 0 0;color:#5d6f82;line-height:1.6}
     .badge{display:inline-block;padding:8px 12px;border-radius:999px;background:#dcecff;color:#175cad;font-weight:700;font-size:14px;white-space:nowrap}
-    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0}
-    .card{background:#fff;border:1px solid #e1e9f2;border-radius:14px;padding:16px}.card label{display:block;color:#66788c;font-size:13px}.card strong{display:block;margin-top:8px;font-size:24px;color:#15263a}.card span{display:block;margin-top:6px;color:#758597;font-size:12px;line-height:1.45}
-    .conclusion{background:#102a43;color:#fff;border-radius:16px;padding:20px;margin:18px 0}.conclusion strong{display:block;font-size:20px;line-height:1.45}.conclusion span{display:block;margin-top:8px;color:#c9d8e8;line-height:1.65}
-    .section{background:#fff;border:1px solid #e1e9f2;border-radius:16px;margin-top:18px;overflow:hidden}.section h2{margin:0;padding:17px 18px;font-size:18px;border-bottom:1px solid #edf2f7}
-    table{width:100%;border-collapse:collapse;font-size:13px}th,td{padding:13px 14px;border-bottom:1px solid #edf2f7;text-align:left;vertical-align:top}th{color:#596b80;background:#f8fafc;font-weight:700}td span{color:#758597;font-size:12px}.danger{color:#df3f3f;font-weight:800}.ok{color:#118264;font-weight:800}.empty{text-align:center;color:#7b8da1;padding:24px!important}
-    .footer{margin-top:18px;color:#6b7c90;font-size:12px;line-height:1.7}.footer strong{color:#1f2933}
-    @media(max-width:760px){.page{padding:18px}.hero{display:block}.cards{grid-template-columns:1fr 1fr}h1{font-size:26px}table{font-size:12px}}
+    .alert{margin:16px 0 0;padding:17px 18px;border-radius:14px;color:#fff}.alert.high{background:#c83f3f}.alert.mid{background:#b66d11}.alert.low{background:#14795b}.alert strong{display:block;font-size:20px}.alert span{display:block;margin-top:6px;opacity:.9;line-height:1.55}
+    .cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:16px 0}
+    .card{background:#fff;border:1px solid #e1e9f2;border-radius:14px;padding:15px}.card label{display:block;color:#66788c;font-size:13px}.card strong{display:block;margin-top:8px;font-size:24px;color:#15263a}.card span{display:block;margin-top:6px;color:#758597;font-size:12px;line-height:1.45}
+    .entity-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px}.entity-card{background:#fff;border:1px solid #e1e9f2;border-radius:14px;padding:16px}.entity-card strong{font-size:17px}.entity-card span{display:block;margin-top:4px;color:#73849a;font-size:12px}.entity-card dl{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 0}.entity-card dt{color:#758597;font-size:12px}.entity-card dd{margin:5px 0 0;font-size:18px;font-weight:800;color:#15263a}.entity-card p{margin:12px 0 0;color:#596b80;font-size:13px;line-height:1.5}
+    .actions{background:#fff;border:1px solid #e1e9f2;border-radius:16px;margin-top:16px;padding:18px}.actions h2{margin:0 0 12px;font-size:18px}.actions ol{margin:0;padding-left:22px}.actions li{padding:8px 0}.actions strong{display:block;color:#172b41}.actions span{display:block;margin-top:4px;color:#66788c;font-size:13px;line-height:1.55}
+    .danger{color:#df3f3f!important}.ok{color:#118264!important}.footer{margin-top:16px;color:#6b7c90;font-size:12px;line-height:1.7}.footer strong{color:#1f2933}
+    @media(max-width:760px){.page{padding:18px}.hero{display:block}.cards,.entity-grid{grid-template-columns:1fr 1fr}h1{font-size:26px}}@media(max-width:520px){.cards,.entity-grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -2306,42 +2312,38 @@ function monthlyReportHtml(report = buildMonthlyReportData()) {
           <div class="mark"><svg viewBox="0 0 64 64"><path class="ring" d="M48 13c-8-7-23-7-31 2-8 10-3 23 14 23 14 0 19 9 11 17-8 7-23 5-29-5"/><path class="curve" d="M51 18c4 8 2 19-7 25M13 46c-5-9-2-22 8-27"/><path class="dna" d="M20 32c7-6 17-6 24 0M22 29l4 6m4-9 4 12m4-12 4 9"/></svg></div>
           <div><strong>微新生物 SynBiome</strong><br><span>研发补贴平衡台账</span></div>
         </div>
-        <h1>研发补贴平衡月报</h1>
-        <p class="sub">本简报用于每月提醒杭州、深圳两地研发费用是否满足政策要求，避免因研发投入不足影响补贴到账。</p>
+        <h1>管理层预警简报</h1>
+        <p class="sub">只呈现结论和关键数字。项目明细、费用口径、导入解析在后台处理。</p>
       </div>
       <div class="badge">${escapeHtml(report.month)}</div>
     </section>
+    <section class="alert ${alert}"><strong>${alertText}</strong><span>${escapeHtml(report.nextAction)}</span></section>
     <section class="cards">
+      <article class="card"><label>研发投入达标率</label><strong>${pct(investmentRate)}</strong><span>已投入 ${wan(report.totalCollected)} / 要求 ${wan(report.totalTarget)} 万</span></article>
       <article class="card"><label>研发投入缺口</label><strong>${wan(report.totalGap)} 万</strong><span>两地主体合计</span></article>
-      <article class="card"><label>本月新增投入</label><strong>${wan(report.monthInput)} 万</strong><span>当月已录入归集金额</span></article>
-      <article class="card"><label>补贴到账率</label><strong>${report.totalDeclared ? pct(report.totalReceived / report.totalDeclared) : "0%"}</strong><span>到账 ${wan(report.totalReceived)} / 申请 ${wan(report.totalDeclared)} 万</span></article>
-      <article class="card"><label>重点风险</label><strong>${report.riskProjects.length}</strong><span>仍有缺口或节点紧张</span></article>
+      <article class="card"><label>补贴到账率</label><strong>${pct(fundingRate)}</strong><span>到账 ${wan(report.totalReceived)} / 申请 ${wan(report.totalDeclared)} 万</span></article>
+      <article class="card"><label>需关注事项</label><strong>${analysis.actions.length}</strong><span>后台已排序处理</span></article>
     </section>
-    <section class="conclusion"><strong>${escapeHtml(report.conclusion)}</strong><span>${escapeHtml(report.nextAction)}</span></section>
-    <section class="section">
-      <h2>两地平衡情况</h2>
-      <table><thead><tr><th>主体</th><th>项目数</th><th>要求研发投入</th><th>当前研发投入</th><th>投入缺口</th><th>补贴到账率</th><th>建议</th></tr></thead>
-      <tbody>${report.entityRows.map((row) => `<tr><td><strong>${escapeHtml(row.entity.name)}</strong></td><td>${row.projects}</td><td>${wan(row.target)} 万</td><td>${wan(row.collected)} 万</td><td class="${row.gap > 0 ? "danger" : "ok"}">${wan(row.gap)} 万</td><td>${row.declared ? pct(row.received / row.declared) : "0%"}</td><td>${escapeHtml(row.advice)}</td></tr>`).join("")}</tbody></table>
-    </section>
-    <section class="section">
-      <h2>重点项目风险</h2>
-      <table><thead><tr><th>项目</th><th>主体</th><th>投入缺口</th><th>达标率</th><th>材料截止</th></tr></thead><tbody>${riskRows}</tbody></table>
-    </section>
-    <section class="section">
-      <h2>近期材料节点</h2>
-      <table><thead><tr><th>事项</th><th>截止日</th><th>剩余时间</th><th>说明</th></tr></thead><tbody>${upcomingRows}</tbody></table>
-    </section>
-    <p class="footer"><strong>固定动作：</strong>会计每月录入新增研发投入；申报负责人审核主体和项目归属；管理层重点看缺口，避免因研发投入不足导致补贴无法到位。</p>
+    <section class="entity-grid">${entityCards}</section>
+    <section class="actions"><h2>需要管理层知道的三件事</h2><ol>${actionItems}</ol></section>
+    <p class="footer"><strong>后台处理：</strong>会计邮件附件导入、研发费用口径判断、项目匹配、人员费用分摊、明细台账和材料节点均在后台处理；管理层只需看预警等级和关键数字。</p>
   </main>
 </body>
 </html>`;
+}
+
+function executiveAlertLevel(report, analysis) {
+  if (report.totalGap > 0 && report.totalTarget && report.totalCollected / report.totalTarget < 0.75) return "high";
+  if (analysis.actions.some((item) => item.level === "high")) return "high";
+  if (report.totalGap > 0 || analysis.actions.some((item) => item.level === "mid")) return "mid";
+  return "low";
 }
 
 function openMonthlyReportHtml() {
   const blob = new Blob([monthlyReportHtml()], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank", "noopener");
-  showToast("HTML 简报已打开，可截图或另存");
+  showToast("管理层简报已打开，可截图或另存");
 }
 
 function renderWorkflowStep(number, title, copy, state) {
