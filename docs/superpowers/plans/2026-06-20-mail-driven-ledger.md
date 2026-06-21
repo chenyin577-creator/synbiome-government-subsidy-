@@ -33,6 +33,8 @@
 - Modify `outputs/research-subsidy-ledger/使用说明.md`: add the new monthly email workflow.
 - Modify `outputs/research-subsidy-ledger/邮件驱动闭环设计说明.md`: link the implementation boundaries and required mailbox setup.
 - Add `outputs/research-subsidy-ledger/邮件闭环实施计划.md`: non-technical checklist for the company team.
+- Add `outputs/research-subsidy-ledger/附件字段映射确认表.csv`: pre-development field mapping checklist for accountant exports.
+- Add `outputs/research-subsidy-ledger/管理层月报样张.html`: pre-development sample of the CEO/CFO HTML report.
 
 ---
 
