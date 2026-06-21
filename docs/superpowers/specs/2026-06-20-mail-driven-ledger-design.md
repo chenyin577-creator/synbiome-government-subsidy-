@@ -52,6 +52,8 @@ Before implementation, the business team should review these concrete artifacts:
 
 - `outputs/research-subsidy-ledger/附件字段映射确认表.csv`: confirms how the accountant's real export columns map to system fields.
 - `outputs/research-subsidy-ledger/管理层月报样张.html`: confirms the simplified HTML page CEO/CFO will receive.
+- `outputs/research-subsidy-ledger/邮箱授权安全交接说明.md`: confirms the safe handoff process for mailbox authorization.
+- `outputs/research-subsidy-ledger/邮件闭环上线前检查清单.md`: confirms the go-live checklist before calling the workflow automated.
 
 The field mapping table is required because accounting systems often use different column names for the same business meaning. Development should use the confirmed real export columns instead of guessing from sample names.
 
@@ -207,5 +209,7 @@ Before implementation starts, the business owner should confirm:
 - One real sample ledger export for field mapping.
 - Confirmation that `附件字段映射确认表.csv` matches the accountant's real export.
 - Confirmation that `管理层月报样张.html` is concise enough for CEO/CFO.
+- Confirmation that mailbox authorization is configured only through Tencent Cloud environment variables.
+- Confirmation that the go-live checklist has no open items before production use.
 
 These confirmations are tracked in `outputs/research-subsidy-ledger/邮件闭环设计确认单.md`.
