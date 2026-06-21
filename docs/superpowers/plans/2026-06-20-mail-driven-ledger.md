@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the next version where monthly accounting email attachments are imported, reviewed, rolled into the subsidy ledger, and summarized into a simple CEO/CFO HTML report.
+**Goal:** Build the next version where monthly accounting data is delivered automatically, reviewed only when uncertain, rolled into the subsidy ledger, and summarized into a simple CEO/CFO HTML report.
 
 **Architecture:** Keep the current static app as the operator interface. Add Tencent CloudBase cloud functions for inbox fetching, attachment parsing, import review, report generation, and email sending. Store raw import batches and parsed rows beside the existing `ledger_snapshots` document instead of changing the management report into a complex data-entry surface.
 
@@ -11,12 +11,15 @@
 ## Global Constraints
 
 - CEO/CFO pages remain simple: alert level, key numbers, and the three most important actions.
+- No recurring frontend confirmation: normal monthly rows must not require a user to click a confirmation button.
+- No recurring manual transport: download-upload, copy-paste, and manual monthly re-entry are not valid steady-state workflows.
+- Interface-first: assess accounting-system API, scheduled export, report subscription, mailbox auto-delivery, or cloud-storage delivery before accepting a manual fallback.
 - Do not store mailbox passwords or authorization codes in `outputs/research-subsidy-ledger/config.js`, GitHub, or browser local storage.
 - The current login accounts remain `yin.chen@synbiome.cn`, `yin.zhang@synbiome.cn`, and `lei.dai@synbiome.cn` until the user changes them.
 - The existing CloudBase environment is `synbiome-d6gjygam37987566a`.
 - The existing primary ledger document is collection `ledger_snapshots`, document `micro-wisdom-balance`.
-- The first automated version only supports Excel/CSV attachment import from one dedicated mailbox.
-- Direct accounting-system API integration is out of scope for this plan.
+- The first automated version can use Excel/CSV attachment import from one dedicated mailbox as the MVP transition interface.
+- Deep accounting-system integration is not required for this MVP, but an interface feasibility conclusion is required.
 
 ---
 
@@ -29,9 +32,10 @@
 - Create `cloudfunctions/generateExecutiveReport/index.js`: reuses ledger data to produce the simplified CEO/CFO HTML report.
 - Create `cloudfunctions/sendExecutiveReport/index.js`: sends the generated report email.
 - Create `cloudfunctions/package.json`: declares cloud-function dependencies.
-- Modify `outputs/research-subsidy-ledger/app.js`: add an operator-only import review page that displays pending rows and lets the申报负责人 approve project allocation.
+- Modify `outputs/research-subsidy-ledger/app.js`: add an operator-only exception review page that displays only pending rows and lets the申报负责人 approve project allocation for rows the system cannot classify.
 - Modify `outputs/research-subsidy-ledger/使用说明.md`: add the new monthly email workflow.
 - Modify `outputs/research-subsidy-ledger/邮件驱动闭环设计说明.md`: link the implementation boundaries and required mailbox setup.
+- Add `outputs/research-subsidy-ledger/邮件闭环AI原生执行原则.md`: hard constraints for no recurring frontend confirmation, no manual transport, and interface-first execution.
 - Add `outputs/research-subsidy-ledger/邮件闭环实施计划.md`: non-technical checklist for the company team.
 - Add `outputs/research-subsidy-ledger/附件字段映射确认表.csv`: pre-development field mapping checklist for accountant exports.
 - Add `outputs/research-subsidy-ledger/管理层月报样张.html`: pre-development sample of the CEO/CFO HTML report.
@@ -40,6 +44,55 @@
 - Add `outputs/research-subsidy-ledger/邮件闭环三方确认回执表.csv`: cross-role confirmation receipt.
 - Add `outputs/research-subsidy-ledger/邮件闭环测试验收流程.md`: end-to-end mailbox test acceptance flow.
 - Add `outputs/research-subsidy-ledger/邮件闭环开发启动条件清单.md`: development readiness checklist that is separate from go-live acceptance.
+
+---
+
+### Task 0: Interface Feasibility And No-Manual-Loop Gate
+
+**Files:**
+- Modify: `outputs/research-subsidy-ledger/邮件闭环业务确认跟踪表.csv`
+- Modify: `outputs/research-subsidy-ledger/邮件闭环开发启动条件清单.md`
+
+**Interfaces:**
+- Produces: recorded conclusion for accounting-system API, scheduled export, email auto-delivery, or cloud-storage delivery.
+- Produces: explicit exit condition for any temporary manual email or upload fallback.
+
+- [ ] **Step 1: Confirm accounting-system delivery options**
+
+Ask accounting or the accounting-system administrator to confirm whether the system supports:
+
+- Official API for detailed ledger rows.
+- Scheduled report export.
+- Automatic monthly email delivery.
+- Automatic export to cloud storage.
+
+- [ ] **Step 2: Record the chosen MVP input path**
+
+Record one of:
+
+- `api`
+- `scheduled_email`
+- `cloud_storage_drop`
+- `temporary_manual_email`
+
+If `temporary_manual_email` is chosen, record owner and sunset condition.
+
+- [ ] **Step 3: Reject recurring frontend confirmation**
+
+Confirm the frontend will display only:
+
+- Imported batch status.
+- Warning report.
+- Rows with `need_review`.
+
+Do not add a normal monthly “confirm import” button as a required step.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add outputs/research-subsidy-ledger/邮件闭环业务确认跟踪表.csv outputs/research-subsidy-ledger/邮件闭环开发启动条件清单.md
+git commit -m "docs: add interface-first execution gate"
+```
 
 ---
 
@@ -715,15 +768,15 @@ git commit -m "feat: add executive report email sender"
 Append this to `outputs/research-subsidy-ledger/使用说明.md`:
 
 ```md
-## 下一版：会计只发邮件
+## 下一版：系统自动取得账表
 
-下一版接通邮箱后，会计不用重复填表。
+下一版接通邮箱或接口后，会计不用重复填表。
 
-每月动作：
+目标动作：
 
-1. 会计从账套导出研发费用明细账。
-2. 会计把 Excel 或 CSV 发到指定台账邮箱。
-3. 系统自动读取附件。
+1. 会计系统通过 API、定时邮件或自动导出提供明细账。
+2. 系统自动读取附件或接口数据。
+3. 系统自动识别研发费用。
 4. 申报负责人只审核系统不确定的记录。
 5. CEO/CFO 只收到管理层简报。
 ```
@@ -737,7 +790,7 @@ Create `outputs/research-subsidy-ledger/邮件闭环实施计划.md`:
 
 ## 一句话
 
-会计以后每月只发一封带账表附件的邮件，系统负责导入、提醒和生成管理层简报。
+系统以后自动取得会计账表，负责导入、提醒和生成管理层简报。邮件附件可以作为第一阶段过渡接口，但不能长期靠人每月搬运。
 
 ## 第一步
 
@@ -745,7 +798,7 @@ Create `outputs/research-subsidy-ledger/邮件闭环实施计划.md`:
 
 这个邮箱只做两件事：
 
-- 接收会计发来的研发费用明细账。
+- 接收会计系统自动投递或测试阶段人工发送的研发费用明细账。
 - 发出每月管理层简报。
 
 ## 第二步
@@ -756,7 +809,7 @@ Create `outputs/research-subsidy-ledger/邮件闭环实施计划.md`:
 
 用一封测试邮件验收：
 
-1. 会计发送 Excel 或 CSV。
+1. 系统通过接口、定时邮件或测试邮件取得 Excel 或 CSV。
 2. 系统出现一个导入批次。
 3. 明确的研发费用自动进入台账。
 4. 不确定的费用进入待审核。
@@ -765,7 +818,7 @@ Create `outputs/research-subsidy-ledger/邮件闭环实施计划.md`:
 
 ## 暂时不做
 
-- 不直接连接完整会计系统。
+- 不做完整会计系统深度直连，但要先查接口或自动导出能力。
 - 不上传所有凭证和发票。
 - 不让管理层看明细。
 - 不做复杂审批流。
@@ -776,7 +829,7 @@ Create `outputs/research-subsidy-ledger/邮件闭环实施计划.md`:
 Run:
 
 ```bash
-rg -n "下一版：会计只发邮件|CEO/CFO 只收到管理层简报" outputs/research-subsidy-ledger/使用说明.md
+rg -n "下一版：系统自动取得账表|CEO/CFO 只收到管理层简报" outputs/research-subsidy-ledger/使用说明.md
 rg -n "专用公司邮箱|不能写在网页文件里|HTML 简报" outputs/research-subsidy-ledger/邮件闭环实施计划.md
 ```
 
