@@ -2343,7 +2343,7 @@ function openMonthlyReportHtml() {
   const blob = new Blob([monthlyReportHtml()], { type: "text/html;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank", "noopener");
-  showToast("管理层简报已打开，可截图或另存");
+  showToast("管理层简报已打开；正式版本将自动发送");
 }
 
 function renderWorkflowStep(number, title, copy, state) {
