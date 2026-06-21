@@ -54,6 +54,8 @@ Before implementation, the business team should review these concrete artifacts:
 - `outputs/research-subsidy-ledger/管理层月报样张.html`: confirms the simplified HTML page CEO/CFO will receive.
 - `outputs/research-subsidy-ledger/邮箱授权安全交接说明.md`: confirms the safe handoff process for mailbox authorization.
 - `outputs/research-subsidy-ledger/邮件闭环上线前检查清单.md`: confirms the go-live checklist before calling the workflow automated.
+- `outputs/research-subsidy-ledger/邮件闭环三方确认回执表.csv`: records sign-off from management, accounting, project owner, and IT.
+- `outputs/research-subsidy-ledger/邮件闭环测试验收流程.md`: defines the end-to-end test flow for the first real mailbox run.
 
 The field mapping table is required because accounting systems often use different column names for the same business meaning. Development should use the confirmed real export columns instead of guessing from sample names.
 
@@ -196,6 +198,7 @@ The first automated version is accepted only when all of the following pass:
 8. The CEO/CFO HTML report uses updated ledger numbers.
 9. The report can be sent to the configured recipient list.
 10. No mailbox password appears in frontend files, GitHub, or exported static assets.
+11. The end-to-end test flow in `邮件闭环测试验收流程.md` has been executed and evidence is retained.
 
 ## Open Business Confirmations
 
@@ -211,5 +214,7 @@ Before implementation starts, the business owner should confirm:
 - Confirmation that `管理层月报样张.html` is concise enough for CEO/CFO.
 - Confirmation that mailbox authorization is configured only through Tencent Cloud environment variables.
 - Confirmation that the go-live checklist has no open items before production use.
+- Sign-off in `邮件闭环三方确认回执表.csv`.
+- Agreement on the test evidence required by `邮件闭环测试验收流程.md`.
 
 These confirmations are tracked in `outputs/research-subsidy-ledger/邮件闭环设计确认单.md`.
