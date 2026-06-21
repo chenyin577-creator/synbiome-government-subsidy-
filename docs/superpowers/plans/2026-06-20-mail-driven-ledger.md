@@ -37,6 +37,8 @@
 - Add `outputs/research-subsidy-ledger/管理层月报样张.html`: pre-development sample of the CEO/CFO HTML report.
 - Add `outputs/research-subsidy-ledger/邮箱授权安全交接说明.md`: non-technical secure mailbox authorization handoff.
 - Add `outputs/research-subsidy-ledger/邮件闭环上线前检查清单.md`: production readiness checklist.
+- Add `outputs/research-subsidy-ledger/邮件闭环三方确认回执表.csv`: cross-role confirmation receipt.
+- Add `outputs/research-subsidy-ledger/邮件闭环测试验收流程.md`: end-to-end mailbox test acceptance flow.
 
 ---
 
