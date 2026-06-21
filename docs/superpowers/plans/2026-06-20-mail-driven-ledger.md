@@ -39,6 +39,7 @@
 - Add `outputs/research-subsidy-ledger/邮件闭环上线前检查清单.md`: production readiness checklist.
 - Add `outputs/research-subsidy-ledger/邮件闭环三方确认回执表.csv`: cross-role confirmation receipt.
 - Add `outputs/research-subsidy-ledger/邮件闭环测试验收流程.md`: end-to-end mailbox test acceptance flow.
+- Add `outputs/research-subsidy-ledger/邮件闭环开发启动条件清单.md`: development readiness checklist that is separate from go-live acceptance.
 
 ---
 
