@@ -35,6 +35,8 @@
 - Add `outputs/research-subsidy-ledger/邮件闭环实施计划.md`: non-technical checklist for the company team.
 - Add `outputs/research-subsidy-ledger/附件字段映射确认表.csv`: pre-development field mapping checklist for accountant exports.
 - Add `outputs/research-subsidy-ledger/管理层月报样张.html`: pre-development sample of the CEO/CFO HTML report.
+- Add `outputs/research-subsidy-ledger/邮箱授权安全交接说明.md`: non-technical secure mailbox authorization handoff.
+- Add `outputs/research-subsidy-ledger/邮件闭环上线前检查清单.md`: production readiness checklist.
 
 ---
 
