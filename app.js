@@ -1,9 +1,10 @@
 const STORAGE_KEY = "research-subsidy-ledger-v1";
 const SESSION_KEY = "research-subsidy-ledger-session-v1";
+const DATA_VERSION = "real-subsidy-projects-2026-06-25-rd-warning-focus";
 const TODAY = new Date();
 TODAY.setHours(0, 0, 0, 0);
 const APP_CONFIG = window.SUBSIDY_APP_CONFIG || {};
-const CLOUD_ORG_ID = APP_CONFIG.organizationId || "micro-wisdom-balance";
+const CLOUD_ORG_ID = APP_CONFIG.organizationId || "micro-wisdom-balance-20260625";
 const CLOUD_TABLE = APP_CONFIG.cloudbaseCollection || "ledger_snapshots";
 const CLOUD_POLL_MS = 20000;
 const ALLOWED_ACCOUNTS = Array.isArray(APP_CONFIG.accounts)
@@ -15,6 +16,13 @@ const ALLOWED_ACCOUNTS = Array.isArray(APP_CONFIG.accounts)
 const REPORT_EMAILS = Array.isArray(APP_CONFIG.monthlyReportRecipients)
   ? APP_CONFIG.monthlyReportRecipients.map((email) => String(email || "").trim()).filter(Boolean)
   : [];
+const AGENT_MAILBOX = APP_CONFIG.agentMailbox || "yinchen7837@agent.qq.com";
+const AutomationRules = window.SubsidyAutomationRules || {};
+const RD_WARNING_PROJECT_IDS = new Set([
+  "HZ-RD-SUBSIDY-2025",
+  "SZ-ACNE-LYSOZYME-2025",
+  "SZ-KEYIND-CARIES-PROTEIN-2026"
+]);
 
 const cloud = {
   app: null,
@@ -47,12 +55,14 @@ const icons = {
 const navItems = [
   ["dashboard", "平衡总览", "杭州与深圳研发投入是否够用"],
   ["analysis", "智能分析", "自动给出费用归集和风险处理建议"],
+  ["intake", "立项中心", "初始立项、接收人和提醒节点"],
   ["monthly", "每月录入", "每月录入固定研发投入数字"],
   ["report", "月报简报", "每月给管理层看的简版汇报"],
   ["projects", "项目设置", "先设置项目目标，后续只录数字"]
 ];
 
 const seed = {
+  dataVersion: DATA_VERSION,
   entities: [
     {
       id: "hz",
@@ -71,363 +81,194 @@ const seed = {
   ],
   projects: [
     {
-      id: "HZ-RD-2025",
-      code: "HZ2025-RD",
+      id: "HZ-RD-SUBSIDY-2025",
+      code: "HZ2025-RD-SUBSIDY",
       entityId: "hz",
-      name: "钱塘区年度研发费用补贴",
+      name: "杭州微新研发补贴项目",
       area: "杭州市钱塘区",
       year: "2025",
-      cycle: "2025-01 至 2025-12",
-      type: "研发费用补贴",
-      threshold: 8000000,
-      subsidyRate: 0.12,
-      cap: 1000000,
+      cycle: "2025-08 起",
+      type: "研发补贴",
+      applicationKind: "funding",
+      rdWarningFocus: true,
+      approvalDate: "2025-08-01",
+      threshold: 6000000,
+      subsidyRate: 0.5,
+      cap: 3000000,
+      declaredAmount: 3000000,
       received: 0,
-      deadline: "2026-07-20",
-      materialDeadline: "2026-07-08",
+      deadline: "2026-12-31",
+      materialDeadline: "2026-07-31",
       owner: "张英",
-      accountingScope: "年度研发费用总额",
-      note: "按年度核算，建议与研发费用辅助账和年度审计数据核对。"
+      accountingScope: "只累计杭州微新财务报表中研发费用科目发生额；按 600 万研发投入、50% 报销口径跟踪。",
+      executionStatus: "已递交待审批",
+      executionProgress: 65,
+      projectOverview: "杭州微新 600 万研发费用补贴项目，按研发投入 50% 报销，预计补贴总额 300 万；首期 150 万材料已递交，正在等待审批批准。",
+      triggerConditions: "杭州微新累计合规研发费用达到 600 万；按 50% 报销口径申请；首期 150 万已具备申请条件。",
+      nextProcess: "跟踪审批批准结果 -> 收到批准后跟进首期 150 万拨付 -> 每月累计杭州研发费用科目 -> 预警 600 万达标缺口",
+      materialNeeds: "已递交材料；后续重点补充杭州研发费用明细账、专项审计或财务证明、审批反馈和拨付材料。",
+      completedInfo: "材料已递交，等待审批批准。",
+      nextStep: "每月从杭州微新财务报表研发费用科目累计金额，重点看是否达到 600 万。",
+      note: "来源：2026-06-25 用户口述。"
     },
     {
-      id: "HZ-SITE-2025",
-      code: "HZ2025-SITE",
+      id: "HZ-RENT-SUBSIDY-2025",
+      code: "HZ2025-RENT-SUBSIDY",
       entityId: "hz",
-      name: "钱塘区场地补贴",
+      name: "杭州微新房租补贴项目",
       area: "杭州市钱塘区",
       year: "2025",
-      cycle: "2025-01 至 2025-12",
-      type: "场地补贴",
-      threshold: 600000,
-      subsidyRate: 0.25,
-      cap: 500000,
-      received: 180000,
-      deadline: "2026-07-15",
-      materialDeadline: "2026-07-01",
+      cycle: "年度申报",
+      type: "房租补贴",
+      applicationKind: "funding",
+      rdWarningFocus: false,
+      approvalDate: "2025-08-01",
+      threshold: 0,
+      subsidyRate: 0,
+      cap: 1000000,
+      declaredAmount: 1000000,
+      received: 0,
+      deadline: "2027-01-31",
+      materialDeadline: "2027-01-15",
       owner: "张英",
-      accountingScope: "年度租金及场地成本",
-      note: "不等同研发费用补贴，单独留存租赁、付款与场地使用资料。"
+      accountingScope: "房租补贴按年度核算，重点核对租赁合同、房租发票、付款记录和审计报告。",
+      executionStatus: "待到期申报",
+      executionProgress: 20,
+      projectOverview: "房租补贴总额 100 万；以年为单位，到期之后递交审计报告和房租发票申报。",
+      triggerConditions: "年度周期到期后，准备审计报告、房租发票及付款凭证后申报。",
+      nextProcess: "等待年度周期到期 -> 准备审计报告和房租发票 -> 提交申报 -> 跟踪审批和拨付",
+      materialNeeds: "审计报告、房租发票、租赁合同、付款记录、年度申报表。",
+      completedInfo: "已确认补贴总额和申报方式；具体年度到期日和材料模板待补充。",
+      nextStep: "请张英确认房租补贴对应年度周期、到期日和审计报告要求。",
+      note: "来源：2026-06-25 用户口述。"
     },
     {
-      id: "HZ-HNTE-2026",
-      code: "HZ2026-GG",
-      entityId: "hz",
-      name: "高新技术企业认定",
-      area: "浙江省/杭州市",
+      id: "SZ-ACNE-LYSOZYME-2025",
+      code: "SZ2025-ZDZX-ACNE",
+      entityId: "sz",
+      name: "2025年深圳重大专项--痤疮靶向溶菌酶",
+      area: "深圳市",
+      year: "2025",
+      cycle: "2026 至 2027",
+      type: "深圳重大专项",
+      applicationKind: "funding",
+      rdWarningFocus: true,
+      approvalDate: "2025-08-01",
+      threshold: 4000000,
+      subsidyRate: 0.6,
+      cap: 2000000,
+      declaredAmount: 1200000,
+      received: 402000,
+      deadline: "2027-12-31",
+      materialDeadline: "2027-11-30",
+      owner: "黄蕊",
+      accountingScope: "项目要求企业研发支出达到 400 万；需按深圳微智归集研发费用。",
+      executionStatus: "拨付跟踪中",
+      executionProgress: 55,
+      projectOverview: "计划于 2025 年申请，项目总资助额度 200 万，深圳微智可取得 60% 即 120 万；项目要求企业研发支出达到 400 万。",
+      triggerConditions: "企业研发支出需达到 400 万；第一轮企业份额 60 万已完成申请，第二轮总资助 100 万中企业预计份额 60 万，需等今年或明年提交申请。",
+      nextProcess: "跟踪区级配套 19.8 万到账 -> 准备第二轮企业份额 60 万申请 -> 持续归集 400 万研发支出证明",
+      materialNeeds: "研发费用归集明细、第一轮/第二轮拨付申请材料、市级及区级配套材料、阶段报告、验收材料。",
+      completedInfo: "第一轮 60 万企业份额已申请；市级配套 40.2 万已到账，区级配套 19.8 万尚未到账。",
+      nextStep: "请黄蕊跟踪区级 19.8 万到账，并准备第二轮企业份额 60 万申请材料。",
+      note: "来源：2026-06-25 用户补充。总资助 200 万，企业可拿 120 万；第二轮总资助额度 100 万，对企业预计份额 60 万。"
+    },
+    {
+      id: "SZ-VAGINAL-MICROECOLOGY-2024",
+      code: "SZ2024-KJZD-VAGINAL",
+      entityId: "sz",
+      name: "2024深圳科技重大专项--阴道微生态项目",
+      area: "深圳市",
+      year: "2024",
+      cycle: "2025 至 2026",
+      type: "深圳科技重大专项",
+      applicationKind: "funding",
+      rdWarningFocus: false,
+      approvalDate: "2024-08-01",
+      threshold: 0,
+      subsidyRate: 0,
+      cap: 480000,
+      declaredAmount: 480000,
+      received: 400000,
+      deadline: "2027-04-30",
+      materialDeadline: "2026-12-31",
+      owner: "黄蕊",
+      accountingScope: "非我方牵头项目，对深圳微智研发支出没有要求；重点跟踪考核和尾款到账。",
+      executionStatus: "待年终考核",
+      executionProgress: 80,
+      projectOverview: "该项目不是由我们牵头，对我们的研发支出没有要求；补助总额 48 万，分两批，目前已收到第一批 40 万，第二批 8 万尚未到账。",
+      triggerConditions: "需通过 2026 年年底考核；第二批 8 万预计 2027 年 4 月到账。",
+      nextProcess: "准备 2026 年底考核材料 -> 跟踪考核通过结果 -> 2027 年 4 月确认第二批 8 万到账",
+      materialNeeds: "2026 年底考核材料、牵头单位配合材料、项目进展说明、拨付申请或确认材料。",
+      completedInfo: "第一批 40 万已到账；第二批 8 万待 2026 年底考核后拨付。",
+      nextStep: "请黄蕊确认 2026 年底考核材料清单，并跟踪 2027 年 4 月 8 万到账。",
+      note: "来源：2026-06-25 用户补充。该项目无我方研发支出要求。"
+    },
+    {
+      id: "SZ-SME-ANTIFUNGAL-GEL-2026",
+      code: "SZ2026-YYYF-SME-GEL",
+      entityId: "sz",
+      name: "2026年深圳市应用研发专项小微企业技术创新项目--抗真菌肽妇科凝胶产品开发",
+      area: "深圳市",
       year: "2026",
-      cycle: "2026-01 至 2026-12",
-      type: "资质认定",
-      applicationKind: "qualification",
+      cycle: "2026-05 起",
+      type: "深圳应用研发专项",
+      applicationKind: "funding",
+      rdWarningFocus: false,
+      approvalDate: "2026-05-01",
       threshold: 0,
       subsidyRate: 0,
       cap: 0,
+      declaredAmount: 0,
       received: 0,
-      deadline: "2026-09-30",
-      materialDeadline: "2026-08-20",
-      owner: "张英",
-      accountingScope: "非资金类政策申请",
-      requirementProgress: 58,
-      requirementSummary: "研发费用占比、知识产权、科技人员、成果转化、高新收入等条件待补齐",
-      note: "国高不是单纯拿补贴，重点跟踪条件达标、审计材料、知识产权和申报批次。"
+      deadline: "2026-12-31",
+      materialDeadline: "2026-09-30",
+      owner: "侯晨阳",
+      accountingScope: "待补充：小微企业技术创新项目研发费用要求",
+      executionStatus: "已提交",
+      executionProgress: 30,
+      projectOverview: "已经申报，处于受理阶段。需补充补贴金额、研发投入门槛、受理后流程和材料节点。",
+      triggerConditions: "待补充：受理后下一节点、研发投入要求、立项/拨付触发条件。",
+      nextProcess: "等待受理结果 -> 补充立项/评审材料 -> 跟踪立项通知 -> 建立费用归集口径",
+      materialNeeds: "待补充：申报书、受理回执、研发费用预算、项目计划书、后续评审材料。",
+      completedInfo: "已申报，处于受理阶段。",
+      nextStep: "请侯晨阳补充受理编号、预计评审时间和研发费用门槛。",
+      note: "来源：微新、微智财政补贴项目进度汇总.xlsx。"
     },
     {
-      id: "SZ-RAW-001",
-      code: "SZ2025WZ-001",
+      id: "SZ-KEYIND-CARIES-PROTEIN-2026",
+      code: "SZ2026-ZDCY-CARIES",
       entityId: "sz",
-      name: "化妆品新原料研发课题",
+      name: "2026年度深圳市重点产业研发计划课题--口腔致龋菌靶向抗菌蛋白",
       area: "深圳市",
-      year: "2025",
-      cycle: "2025-03 至 2026-02",
-      type: "研发课题",
-      threshold: 3000000,
-      subsidyRate: 0.3,
-      cap: 1200000,
-      received: 260000,
-      deadline: "2026-08-15",
-      materialDeadline: "2026-07-25",
-      owner: "张英",
-      accountingScope: "课题单独核算",
-      opportunityName: "化妆品新原料备案",
-      opportunityStage: "研发与备案准备中",
-      expectedHzSubsidy: 0,
-      expectedSzSubsidy: 0,
-      opportunityNextStep: "完成新原料备案后，分别评估杭州微新和深圳微智可申请的补贴政策。",
-      note: "费用应直接归集到课题，研发人员成本允许按工时或比例手工分摊。"
-    },
-    {
-      id: "SZ-FERMENT-002",
-      code: "SZ2025WZ-002",
-      entityId: "sz",
-      name: "发酵工艺放大研发课题",
-      area: "深圳市",
-      year: "2025",
-      cycle: "2025-04 至 2026-03",
-      type: "研发课题",
-      threshold: 2600000,
-      subsidyRate: 0.28,
-      cap: 1000000,
+      year: "2026",
+      cycle: "2026-05 起",
+      type: "深圳重点产业研发计划",
+      applicationKind: "funding",
+      rdWarningFocus: true,
+      approvalDate: "2026-05-01",
+      threshold: 4000000,
+      subsidyRate: 0,
+      cap: 2000000,
+      declaredAmount: 2000000,
       received: 0,
-      deadline: "2026-08-30",
-      materialDeadline: "2026-08-05",
-      owner: "张英",
-      accountingScope: "课题单独核算",
-      note: "材料、试剂、委外测试应优先按课题编号入账。"
-    },
-    {
-      id: "SZ-EVAL-003",
-      code: "SZ2025WZ-003",
-      entityId: "sz",
-      name: "功效评价与备案支持课题",
-      area: "深圳市",
-      year: "2025",
-      cycle: "2025-05 至 2026-03",
-      type: "研发课题",
-      threshold: 1800000,
-      subsidyRate: 0.25,
-      cap: 700000,
-      received: 0,
-      deadline: "2026-09-10",
-      materialDeadline: "2026-08-20",
-      owner: "张英",
-      accountingScope: "课题单独核算",
-      note: "备案支持费用需区分研发验证、注册申报和销售准备。"
+      deadline: "2026-12-31",
+      materialDeadline: "2026-09-30",
+      owner: "耿少琪",
+      accountingScope: "项目要求上一年度有 400 万研发投入；若批复，需要提前准备研发费用归集材料。",
+      executionStatus: "已申请待批复",
+      executionProgress: 35,
+      projectOverview: "深圳市重点产业研发计划课题“口腔致龋菌靶向抗菌蛋白”，2026 年 5 月刚申请，申请财政补助 200 万；要求上一年度有 400 万研发投入。",
+      triggerConditions: "项目批复后需准备研发费用归集；上一年度研发投入需达到 400 万。",
+      nextProcess: "等待批复结果 -> 预先整理上一年度 400 万研发投入证明 -> 建立研发费用归集台账 -> 批复后准备拨付/验收材料",
+      materialNeeds: "申报书、受理材料、上一年度研发费用明细、专项审计或财务证明、项目计划书、评审或答辩材料。",
+      completedInfo: "2026 年 5 月已申请，目前待批复；补助申请金额 200 万。",
+      nextStep: "请耿少琪提前准备上一年度 400 万研发投入归集口径和证明材料。",
+      note: "来源：2026-06-25 用户补充。"
     }
   ],
-  expenses: [
-    {
-      id: "FY20250128001",
-      date: "2025-01-28",
-      entityId: "hz",
-      projectId: "HZ-RD-2025",
-      category: "人员人工",
-      summary: "研发人员工资 - 杭州研发支持",
-      vendor: "内部员工",
-      amount: 460000,
-      eligibleAmount: 460000,
-      recognitionStatus: "可归集",
-      allocationStatus: "无需分摊",
-      source: "财务报表",
-      voucherNo: "记-202501-071"
-    },
-    {
-      id: "FY20250211001",
-      date: "2025-02-11",
-      entityId: "hz",
-      projectId: "HZ-RD-2025",
-      category: "直接投入",
-      summary: "ELISA 试剂盒与实验耗材",
-      vendor: "杭州赛默生物",
-      amount: 286000,
-      eligibleAmount: 286000,
-      recognitionStatus: "可归集",
-      allocationStatus: "无需分摊",
-      source: "财务报表",
-      voucherNo: "记-202502-022"
-    },
-    {
-      id: "FY20250303001",
-      date: "2025-03-03",
-      entityId: "hz",
-      projectId: "HZ-RD-2025",
-      category: "检测检验",
-      summary: "动物实验检测服务",
-      vendor: "杭州医科所",
-      amount: 588000,
-      eligibleAmount: 588000,
-      recognitionStatus: "可归集",
-      allocationStatus: "无需分摊",
-      source: "行政补录",
-      voucherNo: "记-202503-031"
-    },
-    {
-      id: "FY20250420001",
-      date: "2025-04-20",
-      entityId: "hz",
-      projectId: "HZ-SITE-2025",
-      category: "场地租赁",
-      summary: "杭州办公及实验场地租金",
-      vendor: "钱塘园区",
-      amount: 312000,
-      eligibleAmount: 312000,
-      recognitionStatus: "待确认口径",
-      allocationStatus: "无需分摊",
-      source: "财务报表",
-      voucherNo: "记-202504-088"
-    },
-    {
-      id: "FY20250514001",
-      date: "2025-05-14",
-      entityId: "hz",
-      projectId: "HZ-RD-2025",
-      category: "设备折旧",
-      summary: "研发设备折旧摊销",
-      vendor: "内部折旧",
-      amount: 820000,
-      eligibleAmount: 820000,
-      recognitionStatus: "可归集",
-      allocationStatus: "无需分摊",
-      source: "财务报表",
-      voucherNo: "记-202505-063"
-    },
-    {
-      id: "FY20250605001",
-      date: "2025-06-05",
-      entityId: "hz",
-      projectId: "HZ-RD-2025",
-      category: "委外研发",
-      summary: "活性成分筛选委外研发",
-      vendor: "上海合研生物",
-      amount: 1250000,
-      eligibleAmount: 1250000,
-      recognitionStatus: "可归集",
-      allocationStatus: "无需分摊",
-      source: "财务报表",
-      voucherNo: "记-202506-019"
-    },
-    {
-      id: "FY20250331001",
-      date: "2025-03-31",
-      entityId: "sz",
-      projectId: null,
-      category: "人员人工",
-      summary: "深圳研发人员工资 - 3 月",
-      vendor: "内部员工",
-      amount: 960000,
-      eligibleAmount: 960000,
-      recognitionStatus: "可归集",
-      allocationStatus: "部分分摊",
-      source: "财务报表",
-      voucherNo: "记-202503-102",
-      allocations: [
-        { projectId: "SZ-RAW-001", percent: 45 },
-        { projectId: "SZ-FERMENT-002", percent: 35 },
-        { projectId: "SZ-EVAL-003", percent: 20 }
-      ]
-    },
-    {
-      id: "FY20250430001",
-      date: "2025-04-30",
-      entityId: "sz",
-      projectId: null,
-      category: "人员人工",
-      summary: "深圳研发人员工资 - 4 月",
-      vendor: "内部员工",
-      amount: 1120000,
-      eligibleAmount: 1120000,
-      recognitionStatus: "可归集",
-      allocationStatus: "待分摊",
-      source: "财务报表",
-      voucherNo: "记-202504-115",
-      allocations: []
-    },
-    {
-      id: "FY20250512001",
-      date: "2025-05-12",
-      entityId: "sz",
-      projectId: "SZ-FERMENT-002",
-      category: "直接投入",
-      summary: "高效液相色谱仪配件",
-      vendor: "安捷伦科技",
-      amount: 215000,
-      eligibleAmount: 172000,
-      recognitionStatus: "待确认口径",
-      allocationStatus: "无需分摊",
-      source: "行政补录",
-      voucherNo: "记-202505-044"
-    },
-    {
-      id: "FY20250519001",
-      date: "2025-05-19",
-      entityId: "sz",
-      projectId: "SZ-RAW-001",
-      category: "检测检验",
-      summary: "新原料安全性评价",
-      vendor: "广东省检测院",
-      amount: 680000,
-      eligibleAmount: 680000,
-      recognitionStatus: "可归集",
-      allocationStatus: "无需分摊",
-      source: "财务报表",
-      voucherNo: "记-202505-073"
-    },
-    {
-      id: "FY20250616001",
-      date: "2025-06-16",
-      entityId: "sz",
-      projectId: "SZ-EVAL-003",
-      category: "注册法规",
-      summary: "备案路径咨询服务",
-      vendor: "深圳启证咨询",
-      amount: 160000,
-      eligibleAmount: 80000,
-      recognitionStatus: "待确认口径",
-      allocationStatus: "无需分摊",
-      source: "行政补录",
-      voucherNo: "记-202506-046"
-    },
-    {
-      id: "FY20250718001",
-      date: "2025-07-18",
-      entityId: "sz",
-      projectId: "SZ-FERMENT-002",
-      category: "委外研发",
-      summary: "发酵参数优化委外实验",
-      vendor: "广州益研生物",
-      amount: 740000,
-      eligibleAmount: 740000,
-      recognitionStatus: "可归集",
-      allocationStatus: "无需分摊",
-      source: "财务报表",
-      voucherNo: "记-202507-058"
-    }
-  ],
-  reminders: [
-    {
-      id: "R-001",
-      title: "2025 年审计年报归档",
-      projectId: "HZ-RD-2025",
-      dueDate: "2026-06-30",
-      level: "high",
-      status: "未完成",
-      detail: "钱塘区研发费用补贴通常需要年审口径数据，需提前锁定审计报告。"
-    },
-    {
-      id: "R-002",
-      title: "深圳研发人员工时分摊确认",
-      projectId: "SZ-RAW-001",
-      dueDate: "2026-06-25",
-      level: "high",
-      status: "未完成",
-      detail: "4 月人员费用仍未按课题分摊，影响三个深圳课题研发投入达标率。"
-    },
-    {
-      id: "R-003",
-      title: "钱塘区场地补贴材料窗口",
-      projectId: "HZ-SITE-2025",
-      dueDate: "2026-07-01",
-      level: "mid",
-      status: "未完成",
-      detail: "需核对租赁合同、付款流水及场地使用说明。"
-    },
-    {
-      id: "R-004",
-      title: "待确认研发口径费用复核",
-      projectId: "SZ-FERMENT-002",
-      dueDate: "2026-06-28",
-      level: "mid",
-      status: "处理中",
-      detail: "设备配件、备案咨询、场地费用需要财务复核是否进入研发费用口径。"
-    },
-    {
-      id: "R-005",
-      title: "深圳课题中期材料提交",
-      projectId: "SZ-FERMENT-002",
-      dueDate: "2026-08-05",
-      level: "low",
-      status: "未完成",
-      detail: "发酵工艺放大研发课题需准备费用台账和阶段总结。"
-    }
-  ],
+  expenses: [],
+  reminders: [],
   roles: [
     {
       name: "CEO",
@@ -464,7 +305,7 @@ const ui = {
   page: "dashboard",
   entity: "all",
   year: "all",
-  month: "2025-05",
+  month: TODAY.toISOString().slice(0, 7),
   analysisBudget: 1000000,
   search: "",
   allocationExpenseId: null
@@ -505,23 +346,16 @@ function loadState() {
 }
 
 function migrateState(state) {
+  if (!state || state.dataVersion !== DATA_VERSION || hasLegacyDemoData(state)) {
+    state = clone(seed);
+  }
+  state.dataVersion = DATA_VERSION;
   state.entities?.forEach((entity) => {
     if (entity.name === "杭州微星") entity.name = "杭州微新";
   });
-  if (!state.projects.some((project) => project.id === "HZ-HNTE-2026")) {
-    state.projects.splice(2, 0, clone(seed.projects.find((project) => project.id === "HZ-HNTE-2026")));
-  }
-  if (!state.reminders.some((reminder) => reminder.id === "R-006")) {
-    state.reminders.push({
-      id: "R-006",
-      title: "国高认定条件预审",
-      projectId: "HZ-HNTE-2026",
-      dueDate: "2026-08-20",
-      level: "mid",
-      status: "未完成",
-      detail: "核对研发费用专项审计、知识产权、科技人员、成果转化和高新收入材料。"
-    });
-  }
+  state.expenses = Array.isArray(state.expenses) ? state.expenses : [];
+  state.reminders = Array.isArray(state.reminders) ? state.reminders : [];
+  state.projects = Array.isArray(state.projects) ? state.projects : clone(seed.projects);
   state.expenses?.forEach((expense) => {
     if (!expense.reviewMonth) expense.reviewMonth = (expense.date || "").slice(0, 7);
     if (!expense.reviewStatus) {
@@ -533,13 +367,6 @@ function migrateState(state) {
     if (!expense.reviewer) expense.reviewer = state.projects.find((project) => project.id === expense.projectId)?.owner || "张英";
   });
   state.projects?.forEach((project) => {
-    if (project.id === "SZ-RAW-001" && !project.opportunityName) {
-      project.opportunityName = "化妆品新原料备案";
-      project.opportunityStage = "研发与备案准备中";
-      project.expectedHzSubsidy = Number(project.expectedHzSubsidy || 0);
-      project.expectedSzSubsidy = Number(project.expectedSzSubsidy || 0);
-      project.opportunityNextStep = "完成新原料备案后，分别评估杭州微新和深圳微智可申请的补贴政策。";
-    }
     if (project.opportunityName) {
       project.expectedHzSubsidy = Number(project.expectedHzSubsidy || 0);
       project.expectedSzSubsidy = Number(project.expectedSzSubsidy || 0);
@@ -575,22 +402,57 @@ function migrateState(state) {
         ? "按月确认费用归集，补齐申报材料。"
         : "补充条件达标说明、证明材料和申报批次。";
     }
+    if (!project.projectOverview) {
+      project.projectOverview = project.note || `${project.name}，${isFundingProjectShape(project) ? "重点跟踪研发投入是否满足政府要求。" : "重点跟踪政策条件和材料节点。"}`;
+    }
+    project.emailRecipients = normalizeRecipients(project.emailRecipients || REPORT_EMAILS);
+    if (!project.emailRecipients.length) project.emailRecipients = normalizeRecipients(REPORT_EMAILS);
+    project.agentMailbox = project.agentMailbox || AGENT_MAILBOX;
+    if (!project.triggerConditions) {
+      project.triggerConditions = isFundingProjectShape(project)
+        ? `研发费用达到 ${wan(project.threshold)} 万元；项目负责人完成费用归属审核；申报材料齐备。`
+        : project.requirementSummary || "政策条件、申报材料和截止节点需负责人确认。";
+    }
+    if (!Array.isArray(project.reminderNodes) || !project.reminderNodes.length) {
+      project.reminderNodes = defaultReminderNodesForProject(project);
+    }
+    ensureReminderRecordsForProject(project, state);
   });
   return state;
 }
 
+function hasLegacyDemoData(state) {
+  const legacyProjectIds = new Set([
+    "HZ-RD-2025",
+    "HZ-SITE-2025",
+    "HZ-HNTE-2026",
+    "SZ-RAW-001",
+    "SZ-FERMENT-002",
+    "SZ-EVAL-003"
+  ]);
+  return Array.isArray(state?.projects) && state.projects.some((project) => legacyProjectIds.has(project.id));
+}
+
 function isFundingProjectShape(project) {
-  return project.applicationKind !== "qualification" && Number(project.threshold || 0) > 0;
+  return project.applicationKind !== "qualification" && (
+    Number(project.threshold || 0) > 0 ||
+    Number(project.declaredAmount || 0) > 0 ||
+    Number(project.received || 0) > 0 ||
+    /补贴|专项|课题|创新项目|研发计划/.test(`${project.name || ""} ${project.type || ""}`)
+  );
 }
 
 function inferResearchDirection(project) {
   const text = `${project.name || ""} ${project.type || ""} ${project.note || ""}`;
-  if (/新原料|化妆品/.test(text)) return "化妆品新原料";
-  if (/发酵|工艺|放大|生产/.test(text)) return "发酵工艺与生产放大";
-  if (/功效|评价|备案/.test(text)) return "功效评价与备案支持";
+  if (/房租|租赁|场地/.test(text)) return "房租与场地补贴";
+  if (/研发补贴/.test(text)) return "研发补贴";
+  if (/钱塘|人才|创新创业/.test(text)) return "人才创新创业项目";
+  if (/痤疮|溶菌酶/.test(text)) return "痤疮靶向溶菌酶";
+  if (/阴道|微生态/.test(text)) return "阴道微生态";
+  if (/抗真菌|妇科凝胶/.test(text)) return "抗真菌肽妇科凝胶";
+  if (/口腔|致龋|抗菌蛋白/.test(text)) return "口腔致龋菌靶向抗菌蛋白";
   if (/场地|平台|园区/.test(text)) return "研发平台与场地";
   if (/国高|高新|资质|认定/.test(text)) return "企业资质与创新能力";
-  if (/钱塘|杭州|半亩森林/.test(text)) return "杭州研发与中后台支持";
   return "待负责人确认";
 }
 
@@ -604,6 +466,61 @@ function defaultMaterialNeeds(project) {
   return isFundingProjectShape(project)
     ? "研发费用辅助账、凭证清单、项目阶段总结、审计或专项报告、合同/付款证明"
     : "研发费用专项审计、知识产权、科技人员、成果转化、高新收入及申报书";
+}
+
+function normalizeRecipients(input) {
+  if (AutomationRules.normalizeEmailRecipients) {
+    return AutomationRules.normalizeEmailRecipients(input);
+  }
+  const values = Array.isArray(input) ? input : String(input || "").split(/[;；,，\s\n\r]+/);
+  return [...new Set(values.map((item) => String(item || "").trim().toLowerCase()).filter((item) => item.includes("@")))];
+}
+
+function defaultReminderNodesForProject(project) {
+  if (AutomationRules.buildDefaultReminderNodes) {
+    return AutomationRules.buildDefaultReminderNodes({
+      projectName: project.name,
+      materialDeadline: project.materialDeadline,
+      auditDeadline: project.auditDeadline,
+      applicationDeadline: project.deadline
+    });
+  }
+  return [
+    {
+      key: "material",
+      title: "材料预审",
+      dueDate: project.materialDeadline || project.deadline,
+      level: "中",
+      email: true,
+      detail: "确认研发投入金额、项目归属、补贴申报材料是否齐全。"
+    }
+  ].filter((item) => item.dueDate);
+}
+
+function ensureReminderRecordsForProject(project, state = db) {
+  if (!state.reminders) state.reminders = [];
+  (project.reminderNodes || []).forEach((node) => {
+    const id = `IR-${project.id}-${node.key || slugify(node.title)}`;
+    if (state.reminders.some((reminder) => reminder.id === id)) return;
+    state.reminders.push({
+      id,
+      title: `${project.name}：${node.title}`,
+      projectId: project.id,
+      dueDate: node.dueDate,
+      level: node.level === "高" ? "high" : "mid",
+      status: "未完成",
+      detail: node.detail || "按立项节点提前提醒项目负责人和管理层。"
+    });
+  });
+}
+
+function slugify(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .slice(0, 24) || "node";
 }
 
 function isCloudConfigured() {
@@ -881,12 +798,16 @@ async function loadCloudState() {
     const record = normalizeCloudRecord(await collection.doc(CLOUD_ORG_ID).get());
     if (record?.data && Array.isArray(record.data.projects) && Array.isArray(record.data.expenses)) {
       const remoteStamp = record.updatedAt || record.updated_at || null;
+      const remoteVersion = record.data.dataVersion || "";
       cloud.applyingRemote = true;
       db = migrateState(record.data);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
       cloud.applyingRemote = false;
       cloud.lastSavedAt = remoteStamp || cloud.lastSavedAt;
       setSyncStatus("已同步", "ok");
+      if (db.dataVersion !== remoteVersion || hasLegacyDemoData(record.data)) {
+        await saveCloudState(true);
+      }
     } else {
       await saveCloudState(true);
     }
@@ -995,12 +916,15 @@ function entityColor(id) {
 }
 
 function isFundingProject(project) {
-  return project.applicationKind !== "qualification" && Number(project.threshold || 0) > 0;
+  return isFundingProjectShape(project);
+}
+
+function isRdWarningProject(project) {
+  return Boolean(project?.rdWarningFocus) || RD_WARNING_PROJECT_IDS.has(project?.id);
 }
 
 function isBalanceProject(project) {
-  const text = `${project.name || ""} ${project.type || ""} ${project.accountingScope || ""}`;
-  return isFundingProject(project) && !/场地|租赁|房租|物业|资质|认定/.test(text);
+  return isRdWarningProject(project);
 }
 
 function isOpportunityProject(project) {
@@ -1112,11 +1036,76 @@ function filteredExpenses() {
 
 function contributionForProject(expense, projectId) {
   if (expense.recognitionStatus === "不建议归集") return 0;
+  const project = projectById(projectId);
+  if (expense.entryMode === "entity-rd-monthly" && isRdWarningProject(project) && expense.entityId === project?.entityId) {
+    return Number(expense.eligibleAmount || expense.amount);
+  }
   if (Array.isArray(expense.allocations) && expense.allocations.length) {
     const allocation = expense.allocations.find((item) => item.projectId === projectId);
     return allocation ? Number(expense.eligibleAmount || expense.amount) * allocation.percent / 100 : 0;
   }
   return expense.projectId === projectId ? Number(expense.eligibleAmount || expense.amount) : 0;
+}
+
+function entityRdWarningProjects(entityId) {
+  return db.projects.filter((project) => project.entityId === entityId && isRdWarningProject(project) && (ui.year === "all" || project.year === ui.year));
+}
+
+function entityMonthlyRdExpenses(entityId) {
+  return db.expenses.filter((expense) => (
+    expense.entryMode === "entity-rd-monthly" &&
+    expense.entityId === entityId &&
+    expense.recognitionStatus !== "不建议归集" &&
+    (ui.year === "all" || (expense.date || "").startsWith(ui.year))
+  ));
+}
+
+function entityRdCollected(entityId) {
+  return entityMonthlyRdExpenses(entityId).reduce((sum, expense) => sum + Number(expense.eligibleAmount || expense.amount || 0), 0);
+}
+
+function entityRdPending(entityId) {
+  return entityMonthlyRdExpenses(entityId)
+    .filter((expense) => expense.recognitionStatus === "待确认口径")
+    .reduce((sum, expense) => sum + Number(expense.eligibleAmount || expense.amount || 0), 0);
+}
+
+function expensesForProject(project) {
+  return db.expenses.filter((expense) => contributionForProject(expense, project.id) > 0);
+}
+
+function projectAutomationStatus(project) {
+  if (AutomationRules.evaluateSubsidyTrigger) {
+    return AutomationRules.evaluateSubsidyTrigger(project, expensesForProject(project), TODAY);
+  }
+  const aggregate = aggregateProject(project);
+  const status = aggregate.gap <= 0 ? "ready" : aggregate.risk === "high" ? "blocked" : "watch";
+  return {
+    status,
+    threshold: Number(project.threshold || 0),
+    collected: aggregate.total,
+    confirmed: aggregate.confirmed,
+    pending: aggregate.pending,
+    gap: aggregate.gap,
+    progress: aggregate.progress,
+    shouldWarn: aggregate.gap > 0,
+    triggerReason: aggregate.gap > 0 ? `研发投入缺口 ${wan(aggregate.gap)} 万元` : "暂无明显风险"
+  };
+}
+
+function automationStatusLabel(status) {
+  if (status === "ready") return '<span class="tag green">可触发</span>';
+  if (status === "blocked") return '<span class="tag red">需预警</span>';
+  return '<span class="tag amber">需关注</span>';
+}
+
+function nextReminderNode(project) {
+  const todayIso = TODAY.toISOString().slice(0, 10);
+  return (project.reminderNodes || [])
+    .filter((node) => node.dueDate && node.dueDate >= todayIso)
+    .sort((a, b) => a.dueDate.localeCompare(b.dueDate))[0]
+    || (project.reminderNodes || []).sort((a, b) => String(a.dueDate || "").localeCompare(String(b.dueDate || "")))[0]
+    || null;
 }
 
 function fundingRequested(project) {
@@ -1184,23 +1173,35 @@ function aggregateProject(project) {
 }
 
 function aggregateEntity(entityId) {
-  const projects = db.projects.filter((item) => item.entityId === entityId && isBalanceProject(item) && (ui.year === "all" || item.year === ui.year));
-  return projects.reduce(
-    (acc, project) => {
-      const aggregate = aggregateProject(project);
-      acc.target += project.threshold;
-      acc.collected += aggregate.total;
-      acc.pending += aggregate.pending;
-      acc.received += project.received;
+  const projects = entityRdWarningProjects(entityId);
+  const aggregates = projects.map((project) => ({ project, aggregate: aggregateProject(project) }));
+  const target = projects.reduce((max, project) => Math.max(max, Number(project.threshold || 0)), 0);
+  const collected = Math.max(entityRdCollected(entityId), ...aggregates.map((item) => item.aggregate.total), 0);
+  const pending = Math.max(entityRdPending(entityId), ...aggregates.map((item) => item.aggregate.pending), 0);
+  const gap = Math.max(target - collected, 0);
+  return aggregates.reduce(
+    (acc, { project, aggregate }) => {
+      acc.received += Number(project.received || 0);
       acc.declared += fundingRequested(project);
-      acc.gap += aggregate.gap;
       acc.fundingCount += 1;
       acc.projectCount += 1;
       if (aggregate.risk === "high") acc.highRisk += 1;
       if (aggregate.risk === "mid") acc.midRisk += 1;
       return acc;
     },
-    { target: 0, collected: 0, pending: 0, received: 0, declared: 0, gap: 0, projectCount: 0, fundingCount: 0, policyCount: 0, highRisk: 0, midRisk: 0 }
+    {
+      target,
+      collected,
+      pending,
+      received: 0,
+      declared: 0,
+      gap,
+      projectCount: 0,
+      fundingCount: 0,
+      policyCount: 0,
+      highRisk: 0,
+      midRisk: 0
+    }
   );
 }
 
@@ -1254,9 +1255,15 @@ function renderFilters() {
 }
 
 function renderDashboard() {
-  const projects = filteredProjects().filter(isBalanceProject);
+  const allProjects = filteredProjects();
+  const projects = allProjects.filter(isBalanceProject);
   const opportunities = filteredOpportunityProjects();
   const summary = buildExecutiveSummary(projects);
+  const dashboardWarnings = projects
+    .map((project) => ({ project, status: projectAutomationStatus(project), reminder: nextReminderNode(project) }))
+    .filter((item) => item.status.shouldWarn || item.status.status === "blocked")
+    .sort((a, b) => Number(b.status.status === "blocked") - Number(a.status.status === "blocked") || String(a.reminder?.dueDate || "9999-12-31").localeCompare(String(b.reminder?.dueDate || "9999-12-31")))
+    .slice(0, 3);
   return `
     <section class="leader-strip span-full" aria-label="领导摘要">
       ${summary.map((item) => `
@@ -1277,6 +1284,17 @@ function renderDashboard() {
       <section class="panel span-full">
         <div class="panel-header">
           <div class="panel-title">
+            <h2>近期预警</h2>
+            <span class="count">${dashboardWarnings.length}</span>
+          </div>
+          <button class="button small" type="button" data-nav-target="intake">查看立项</button>
+        </div>
+        ${renderAutomationWarnings(dashboardWarnings)}
+      </section>
+
+      <section class="panel span-full">
+        <div class="panel-header">
+          <div class="panel-title">
             <h2>两地研发投入平衡表</h2>
             <span class="count">核心</span>
           </div>
@@ -1291,7 +1309,7 @@ function renderDashboard() {
             <h2>项目缺口清单</h2>
             <span class="count">${projects.length}</span>
           </div>
-          <button class="button small" type="button" data-nav-target="projects">设置项目</button>
+          <button class="button small" type="button" data-nav-target="intake">立项设置</button>
         </div>
         ${renderSimpleProjectGapTable(projects)}
       </section>
@@ -1302,7 +1320,7 @@ function renderDashboard() {
             <h2>关键项目机会</h2>
             <span class="count">${opportunities.length}</span>
           </div>
-          <button class="button small" type="button" data-nav-target="projects">维护项目</button>
+          <button class="button small" type="button" data-nav-target="intake">维护项目</button>
         </div>
         ${renderOpportunityTable(opportunities)}
       </section>
@@ -1315,13 +1333,13 @@ function renderDashboard() {
           </div>
         </div>
         <div class="action-grid">
-          <button type="button" class="action-tile" data-nav-target="projects">
-            <strong>1. 先设项目</strong>
-            <span>录入两地项目的政府要求研发投入、补贴申请金额和已到账金额。</span>
+          <button type="button" class="action-tile" data-nav-target="intake">
+            <strong>1. 先立项</strong>
+            <span>录入项目概述、收件邮箱、政府要求研发投入和关键提醒节点。</span>
           </button>
           <button type="button" class="action-tile" data-nav-target="monthly">
-            <strong>2. 每月录数字</strong>
-            <span>每个项目只填一个本月新增研发投入数字，保存后自动更新缺口。</span>
+            <strong>2. 财务发资料</strong>
+            <span>每月把研发费用明细发到 Agent 邮箱，无法自动判断的再人工审核。</span>
           </button>
           <button type="button" class="action-tile" data-nav-target="dashboard">
             <strong>3. 看缺口分配</strong>
@@ -1333,7 +1351,7 @@ function renderDashboard() {
           </button>
           <button type="button" class="action-tile" data-nav-target="report">
             <strong>5. 发月报提醒</strong>
-            <span>每月生成一份简版汇报，复制到邮件或微信群，提醒两地费用是否够。</span>
+            <span>每月生成简版汇报，提醒两地研发费用是否够、哪些项目要预警。</span>
           </button>
         </div>
       </section>
@@ -1486,8 +1504,8 @@ function monthlyExpenses() {
 }
 
 function renderMonthly() {
-  const projects = filteredProjects().filter(isBalanceProject);
-  const monthlyTotal = projects.reduce((sum, project) => sum + monthlyFixedAmount(project.id, ui.month), 0);
+  const entities = db.entities.filter((entity) => (ui.entity === "all" || entity.id === ui.entity) && entityRdWarningProjects(entity.id).length);
+  const monthlyTotal = entities.reduce((sum, entity) => sum + monthlyEntityAmount(entity.id, ui.month), 0);
   const hzGap = entityGap("hz");
   const szGap = entityGap("sz");
   return `
@@ -1495,7 +1513,7 @@ function renderMonthly() {
       <section class="monthly-hero">
         <div>
           <h2>${escapeHtml(ui.month)} 每月录入</h2>
-          <p>第一阶段不做复杂费用明细。每月会计只按项目录入一个“本月新增研发投入”数字，系统自动更新杭州/深圳缺口。</p>
+          <p>每月会计只填财务报表里“研发费用”科目的本月发生额：杭州一行、深圳一行。系统自动累计到对应重点项目。</p>
         </div>
         <div class="month-controls">
           <label class="inline-field">
@@ -1509,32 +1527,32 @@ function renderMonthly() {
       </section>
 
       <div class="metric-row">
-        ${renderTopMetric("本月录入", `${wan(monthlyTotal)} 万元`, "按项目固定数字汇总")}
+        ${renderTopMetric("本月录入", `${wan(monthlyTotal)} 万元`, "按主体研发费用科目汇总")}
         ${renderTopMetric("杭州缺口", `${wan(hzGap)} 万元`, "杭州微新研发投入缺口")}
         ${renderTopMetric("深圳缺口", `${wan(szGap)} 万元`, "深圳微智研发投入缺口")}
-        ${renderTopMetric("录入项目", projects.length, "仅显示资金类补贴项目")}
+        ${renderTopMetric("录入主体", entities.length, "只填杭州和深圳研发费用科目")}
       </div>
 
       <section class="workflow-strip">
         ${renderWorkflowStep("1", "先看缺口", "确认杭州和深圳哪个主体更缺研发投入", "done")}
-        ${renderWorkflowStep("2", "录入本月数字", "每个项目只填本月新增研发投入金额", "active")}
+        ${renderWorkflowStep("2", "录入本月数字", "从财务报表研发费用科目抄本月发生额", "active")}
         ${renderWorkflowStep("3", "保存后看总览", "系统自动更新达标率和缺口", "wait")}
-        ${renderWorkflowStep("4", "下月继续", "后续每月只维护固定数字", "wait")}
+        ${renderWorkflowStep("4", "下月继续", "后续每月仍然只填两行数字", "wait")}
       </section>
 
       <section class="panel">
         <div class="panel-header">
-          <div class="panel-title"><h2>本月研发投入录入表</h2><span class="count">${projects.length}</span></div>
+          <div class="panel-title"><h2>本月研发费用科目录入表</h2><span class="count">${entities.length}</span></div>
           <button class="button primary small" type="button" data-action="save-monthly-fixed">保存本月数字</button>
         </div>
-        ${renderMonthlyFixedTable(projects)}
+        ${renderMonthlyFixedTable(entities)}
       </section>
 
       <section class="panel">
         <div class="simple-note-grid">
-          <div class="note-box"><strong>会计怎么填</strong><br>每月做账后，按项目填“本月新增研发投入”。如果暂时只知道主体金额，可以先填到对应主体最需要补缺口的项目。</div>
-          <div class="note-box"><strong>负责人怎么确认</strong><br>重点确认这笔投入应该放在杭州微新还是深圳微智，以及是否归属于对应补贴项目。</div>
-          <div class="note-box"><strong>看什么结果</strong><br>保存后回到“平衡总览”，看研发投入达标率和缺口是否改善。</div>
+          <div class="note-box"><strong>会计怎么填</strong><br>每月做账后，从杭州微新、深圳微智各自财务报表的“研发费用”科目取本月发生额，填到对应主体。</div>
+          <div class="note-box"><strong>负责人怎么确认</strong><br>只确认这笔金额属于杭州微新还是深圳微智，以及是否明显不符合研发费用口径。</div>
+          <div class="note-box"><strong>看什么结果</strong><br>保存后回到“平衡总览”，看杭州 600 万、深圳 400 万的达标率和缺口是否改善。</div>
         </div>
       </section>
     </div>
@@ -1542,50 +1560,58 @@ function renderMonthly() {
 }
 
 function entityGap(entityId) {
-  return db.projects
-    .filter((project) => project.entityId === entityId && isBalanceProject(project) && (ui.year === "all" || project.year === ui.year))
-    .reduce((sum, project) => sum + aggregateProject(project).gap, 0);
+  return aggregateEntity(entityId).gap;
 }
 
-function monthlyFixedAmount(projectId, month) {
-  const id = monthlyFixedExpenseId(projectId, month);
+function monthlyEntityAmount(entityId, month) {
+  const id = monthlyEntityExpenseId(entityId, month);
   const expense = db.expenses.find((item) => item.id === id);
   return Number(expense?.eligibleAmount || 0);
 }
 
-function monthlyFixedExpenseId(projectId, month) {
-  return `MI-${month}-${projectId}`.replace(/[^\w-]/g, "-");
+function monthlyFixedAmount(projectId, month) {
+  const project = projectById(projectId);
+  return project ? monthlyEntityAmount(project.entityId, month) : 0;
 }
 
-function renderMonthlyFixedTable(projects) {
-  if (!projects.length) return '<div class="empty-state">暂无资金类补贴项目，请先到“项目设置”新增项目</div>';
+function monthlyEntityExpenseId(entityId, month) {
+  return `MI-${month}-RD-${entityId}`.replace(/[^\w-]/g, "-");
+}
+
+function monthlyFixedExpenseId(projectId, month) {
+  const project = projectById(projectId);
+  return monthlyEntityExpenseId(project?.entityId || projectId, month);
+}
+
+function renderMonthlyFixedTable(entities) {
+  if (!entities.length) return '<div class="empty-state">暂无需要研发费用预警的主体，请先到“项目设置”确认重点项目</div>';
   return `
     <form id="monthlyFixedForm">
       <div class="table-wrap">
         <table class="data-table simple-table">
           <thead>
             <tr>
-              <th>项目</th>
               <th>主体</th>
+              <th>对应重点项目</th>
               <th>政府要求研发投入</th>
               <th>当前累计研发投入</th>
               <th>当前缺口</th>
-              <th>本月新增研发投入(元)</th>
+              <th>本月研发费用科目发生额(元)</th>
             </tr>
           </thead>
           <tbody>
-            ${projects.map((project) => {
-              const entity = entityById(project.entityId);
-              const aggregate = aggregateProject(project);
+            ${entities.map((entity) => {
+              const projects = entityRdWarningProjects(entity.id);
+              const aggregate = aggregateEntity(entity.id);
               return `
                 <tr>
-                  <td><strong>${escapeHtml(project.name)}</strong><div class="muted">${escapeHtml(project.code)}</div></td>
-                  <td><span class="entity-badge ${entityColor(project.entityId)}">${entity.short}</span> ${escapeHtml(entity.name)}</td>
-                  <td>${wan(project.threshold)} 万</td>
-                  <td>${wan(aggregate.total)} 万</td>
+                  <td><span class="entity-badge ${entityColor(entity.id)}">${entity.short}</span> <strong>${escapeHtml(entity.name)}</strong></td>
+                  <td><strong>${projects.length} 个重点项目</strong><div class="muted">${escapeHtml(projects.map((project) => project.name).join(" / "))}</div></td>
+                  <td>${wan(aggregate.target)} 万</td>
+                  <td>${wan(aggregate.collected)} 万</td>
                   <td><strong class="${aggregate.gap > 0 ? "danger-text" : "money-green"}">${wan(aggregate.gap)} 万</strong></td>
                   <td>
-                    <input class="number-input monthly-fixed-input" type="number" min="0" step="1000" value="${monthlyFixedAmount(project.id, ui.month) || ""}" data-project="${project.id}" aria-label="${escapeHtml(project.name)}本月新增研发投入">
+                    <input class="number-input monthly-fixed-input" type="number" min="0" step="1000" value="${monthlyEntityAmount(entity.id, ui.month) || ""}" data-entity="${entity.id}" aria-label="${escapeHtml(entity.name)}本月研发费用科目发生额">
                   </td>
                 </tr>
               `;
@@ -2016,20 +2042,28 @@ function buildMonthlyReportData() {
   const projects = db.projects.filter((project) => isBalanceProject(project) && (ui.year === "all" || project.year === ui.year));
   const entityRows = db.entities.map((entity) => {
     const entityProjects = projects.filter((project) => project.entityId === entity.id);
+    const entityAggregate = aggregateEntity(entity.id);
     const row = entityProjects.reduce(
       (acc, project) => {
         const aggregate = aggregateProject(project);
-        acc.target += Number(project.threshold || 0);
-        acc.collected += aggregate.total;
-        acc.gap += aggregate.gap;
         acc.declared += fundingRequested(project);
         acc.received += Number(project.received || 0);
-        acc.monthInput += monthlyProjectAmount(project, ui.month);
         if (aggregate.risk === "high") acc.highRisk += 1;
         if (aggregate.risk === "mid") acc.midRisk += 1;
         return acc;
       },
-      { entity, projects: entityProjects.length, target: 0, collected: 0, gap: 0, declared: 0, received: 0, monthInput: 0, highRisk: 0, midRisk: 0 }
+      {
+        entity,
+        projects: entityProjects.length,
+        target: entityAggregate.target,
+        collected: entityAggregate.collected,
+        gap: entityAggregate.gap,
+        declared: 0,
+        received: 0,
+        monthInput: monthlyEntityAmount(entity.id, ui.month),
+        highRisk: 0,
+        midRisk: 0
+      }
     );
     row.investmentProgress = row.target ? row.collected / row.target : 0;
     row.fundingProgress = row.declared ? row.received / row.declared : 0;
@@ -2077,6 +2111,7 @@ function buildMonthlyReportData() {
 }
 
 function monthlyProjectAmount(project, month) {
+  if (isRdWarningProject(project)) return monthlyEntityAmount(project.entityId, month);
   return db.expenses
     .filter((expense) => (expense.reviewMonth || expense.date || "").slice(0, 7) === month)
     .reduce((sum, expense) => sum + contributionForProject(expense, project.id), 0);
@@ -2091,7 +2126,7 @@ function reportEntityAdvice(row) {
 
 function buildMonthlyReportUpcomingItems(projects) {
   const manual = db.reminders
-    .filter((reminder) => reminder.status !== "已完成")
+    .filter((reminder) => reminder.status !== "已完成" && projects.some((project) => project.id === reminder.projectId))
     .map((reminder) => ({
       title: reminder.title,
       dueDate: reminder.dueDate,
@@ -2408,17 +2443,56 @@ function renderProjectIntake() {
     .reduce((sum, project) => sum + aggregateProject(project).gap, 0);
   const pendingUpdate = projects.filter((project) => ["待导入", "已导入基础信息", "待负责人更新"].includes(project.formStatus)).length;
   const running = projects.filter((project) => ["执行中", "材料准备中", "逾期待补"].includes(project.executionStatus)).length;
+  const automationRows = projects.map((project) => ({ project, status: projectAutomationStatus(project), reminder: nextReminderNode(project) }));
+  const readyCount = automationRows.filter((item) => item.status.status === "ready").length;
+  const warnCount = automationRows.filter((item) => item.status.shouldWarn || item.status.status === "blocked").length;
+  const nextWarnings = automationRows
+    .filter((item) => item.status.shouldWarn || item.reminder)
+    .sort((a, b) => Number(b.status.shouldWarn) - Number(a.status.shouldWarn) || String(a.reminder?.dueDate || "9999-12-31").localeCompare(String(b.reminder?.dueDate || "9999-12-31")))
+    .slice(0, 4);
   return `
     <div class="page-stack">
       <section class="monthly-hero">
         <div>
-          <h2>基础项目导入与进度更新</h2>
-          <p>把已经申报、执行到一半或已经完成的项目先导入，再由项目负责人补齐阶段、费用、流程和材料信息。</p>
+          <h2>立项中心</h2>
+          <p>先把项目、接收人和提醒节点立起来；后续财务只需要把研发费用资料发到 Agent 邮箱，系统按项目归类并给出预警。</p>
         </div>
         <div class="month-controls">
-          <button class="button primary" type="button" data-action="open-legacy-import">导入历史项目</button>
-          <button class="button" type="button" data-action="open-project-modal">新增项目</button>
+          <button class="button primary" type="button" data-action="open-initiation-modal">初始立项</button>
+          <button class="button" type="button" data-action="open-agent-mail-instructions">财务邮件说明</button>
         </div>
+      </section>
+
+      <div class="metric-row">
+        ${renderTopMetric("在管立项", projects.length, "资金补贴、政策申请和资质认定")}
+        ${renderTopMetric("可触发申请", readyCount, "研发投入或条件已接近满足")}
+        ${renderTopMetric("需提前预警", warnCount, "缺口、待确认口径或节点临近")}
+        ${renderTopMetric("Agent 邮箱", AGENT_MAILBOX, "财务资料统一发送入口")}
+      </div>
+
+      <section class="automation-brief-grid">
+        <article class="automation-card">
+          <div class="panel-title"><h2>初始立项</h2><span class="count">一次填写</span></div>
+          <p>项目负责人录入项目概述、法人主体、研发方向、补贴门槛、收件邮箱和关键节点。</p>
+          <button class="link-button" type="button" data-action="open-initiation-modal">新增立项</button>
+        </article>
+        <article class="automation-card">
+          <div class="panel-title"><h2>邮件自动化</h2><span class="count">固定入口</span></div>
+          <p>财务每月把明细账或附件发到 <strong>${escapeHtml(AGENT_MAILBOX)}</strong>，标题写明月份和主体。</p>
+          <button class="link-button" type="button" data-action="open-agent-mail-instructions">查看发件格式</button>
+        </article>
+        <article class="automation-card">
+          <div class="panel-title"><h2>预警发送</h2><span class="count">自动判断</span></div>
+          <p>系统根据研发投入缺口、待确认费用和截止日，生成预警并发给立项时选定的收件人。</p>
+          <button class="link-button" type="button" data-nav-target="report">查看月报</button>
+        </article>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>近期预警</h2><span class="count">${nextWarnings.length}</span></div>
+        </div>
+        ${renderAutomationWarnings(nextWarnings)}
       </section>
 
       <section class="panel">
@@ -2485,6 +2559,31 @@ function renderProjectIntake() {
   `;
 }
 
+function renderAutomationWarnings(items) {
+  if (!items.length) return '<div class="empty-state">暂无需要提醒的事项</div>';
+  return `
+    <div class="warning-list">
+      ${items.map(({ project, status, reminder }) => `
+        <article class="warning-item ${status.status}">
+          <div>
+            <strong>${escapeHtml(project.name)}</strong>
+            <span>${automationStatusLabel(status.status)} ${escapeHtml(status.triggerReason)}</span>
+          </div>
+          <div>
+            <small>收件人</small>
+            <span>${escapeHtml((project.emailRecipients || []).join("、") || "未设置")}</span>
+          </div>
+          <div>
+            <small>下一节点</small>
+            <span>${reminder ? `${escapeHtml(reminder.dueDate)} · ${escapeHtml(reminder.title)}` : "未设置"}</span>
+          </div>
+          <button class="link-button" type="button" data-action="open-initiation-modal" data-project="${project.id}">设置</button>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderProjectSupervisionTable(projects) {
   if (!projects.length) return '<div class="empty-state">暂无项目，请先导入历史项目或新增项目</div>';
   return `
@@ -2501,7 +2600,8 @@ function renderProjectSupervisionTable(projects) {
             <th>后续流程</th>
             <th>后续材料</th>
             <th>费用风险</th>
-            <th>更新</th>
+            <th>自动化</th>
+            <th>操作</th>
           </tr>
         </thead>
         <tbody>
@@ -2510,6 +2610,8 @@ function renderProjectSupervisionTable(projects) {
             const aggregate = aggregateProject(project);
             const funding = isFundingProject(project);
             const stageProgress = projectStageProgress(project, aggregate);
+            const automation = projectAutomationStatus(project);
+            const reminder = nextReminderNode(project);
             return `
               <tr>
                 <td>
@@ -2546,7 +2648,16 @@ function renderProjectSupervisionTable(projects) {
                 </td>
                 <td>${escapeHtml(project.materialNeeds || defaultMaterialNeeds(project))}<div class="muted">材料截止 ${escapeHtml(project.materialDeadline)}</div></td>
                 <td>${projectFundingRisk(project, aggregate)}</td>
-                <td><button class="link-button" type="button" data-action="open-project-update" data-project="${project.id}">更新</button></td>
+                <td>
+                  ${automationStatusLabel(automation.status)}
+                  <div class="muted">${escapeHtml(automation.triggerReason)}</div>
+                  <div class="muted">下一提醒：${reminder ? `${escapeHtml(reminder.dueDate)} ${escapeHtml(reminder.title)}` : "未设置"}</div>
+                  <div class="muted">收件人：${escapeHtml((project.emailRecipients || []).join("、") || "未设置")}</div>
+                </td>
+                <td>
+                  <button class="link-button" type="button" data-action="open-project-update" data-project="${project.id}">更新</button>
+                  <button class="link-button" type="button" data-action="open-initiation-modal" data-project="${project.id}">立项设置</button>
+                </td>
               </tr>
             `;
           }).join("")}
@@ -2597,14 +2708,17 @@ function renderRatioCell(title, current, target, detail) {
 function buildExecutiveSummary(projects) {
   const aggregates = projects.map((project) => ({ project, aggregate: aggregateProject(project) }));
   const fundingProjects = projects.filter(isFundingProject);
-  const target = fundingProjects.reduce((sum, item) => sum + item.threshold, 0);
-  const collected = aggregates.filter((item) => isFundingProject(item.project)).reduce((sum, item) => sum + item.aggregate.total, 0);
+  const scopedEntities = db.entities
+    .filter((entity) => ui.entity === "all" || entity.id === ui.entity)
+    .map((entity) => aggregateEntity(entity.id));
+  const target = scopedEntities.reduce((sum, item) => sum + item.target, 0);
+  const collected = scopedEntities.reduce((sum, item) => sum + item.collected, 0);
   const requested = fundingProjects.reduce((sum, item) => sum + fundingRequested(item), 0);
   const received = fundingProjects.reduce((sum, item) => sum + Number(item.received || 0), 0);
-  const gap = aggregates.filter((item) => isFundingProject(item.project)).reduce((sum, item) => sum + item.aggregate.gap, 0);
+  const gap = scopedEntities.reduce((sum, item) => sum + item.gap, 0);
   const highRisk = aggregates.filter((item) => item.aggregate.risk === "high").length;
   const dueSoon = projects.filter((project) => dateDiffDays(project.materialDeadline) <= 30).length;
-  const pending = aggregates.filter((item) => isFundingProject(item.project)).reduce((sum, item) => sum + item.aggregate.pending, 0);
+  const pending = scopedEntities.reduce((sum, item) => sum + item.pending, 0);
   const investmentRate = target ? collected / target : 0;
   const fundingRate = requested ? received / requested : 0;
   return [
@@ -2846,8 +2960,9 @@ function renderProjects() {
   const fundingProjects = projects.filter(isBalanceProject);
   const requested = fundingProjects.reduce((sum, item) => sum + fundingRequested(item), 0);
   const received = fundingProjects.reduce((sum, item) => sum + Number(item.received || 0), 0);
-  const target = fundingProjects.reduce((sum, item) => sum + Number(item.threshold || 0), 0);
-  const collected = fundingProjects.reduce((sum, item) => sum + aggregateProject(item).total, 0);
+  const visibleEntityIds = [...new Set(fundingProjects.map((project) => project.entityId))];
+  const target = visibleEntityIds.reduce((sum, entityId) => sum + aggregateEntity(entityId).target, 0);
+  const collected = visibleEntityIds.reduce((sum, entityId) => sum + aggregateEntity(entityId).collected, 0);
   return `
     <div class="page-stack">
       <section class="monthly-hero">
@@ -3371,9 +3486,9 @@ function openImportModal() {
         <div>
           <label class="field-label light" for="importText">会计系统导出内容</label>
           <textarea id="importText" class="paste-area">日期,主体,科目编码,会计科目,凭证号,摘要,供应商,借方金额,贷方金额,项目编号,费用类型
-2025-08-12,深圳微智,530101,研发费用-直接投入,记-202508-018,新原料小试耗材,深圳试剂供应商,186000,0,SZ2025WZ-001,直接投入
-2025-08-15,杭州微新,530103,研发费用-检测检验,记-202508-026,功效验证检测服务,杭州检测中心,240000,0,HZ2025-RD,检测检验
-2025-08-18,杭州微新,660201,管理费用-办公费,记-202508-039,行政办公用品,办公供应商,23000,0,HZ2025-RD,其他费用</textarea>
+2025-08-12,深圳微智,530101,研发费用-直接投入,记-202508-018,痤疮靶向溶菌酶实验耗材,深圳试剂供应商,186000,0,SZ2025-ZDZX-ACNE,直接投入
+2025-08-15,深圳微智,530103,研发费用-检测检验,记-202508-026,阴道微生态检测服务,深圳检测中心,240000,0,SZ2024-KJZD-VAGINAL,检测检验
+2025-08-18,杭州微新,660201,管理费用-办公费,记-202508-039,行政办公用品,办公供应商,23000,0,HZ2025-RENT-SUBSIDY,其他费用</textarea>
         </div>
         <div>
           <label class="field-label light">识别预览</label>
@@ -3700,6 +3815,203 @@ function savePolicyFromModal() {
   showToast(funding ? "政策门槛已更新" : "政策条件已更新");
 }
 
+function openInitiationModal(projectId) {
+  const project = projectId ? projectById(projectId) : null;
+  const defaultYear = project?.year || String(TODAY.getFullYear());
+  const defaultDeadline = project?.deadline || `${Number(defaultYear) + 1}-08-31`;
+  const defaultMaterialDeadline = project?.materialDeadline || AutomationRules.shiftDate?.(defaultDeadline, -14) || defaultDeadline;
+  const defaultAuditDeadline = project?.auditDeadline || AutomationRules.shiftDate?.(defaultMaterialDeadline, -30) || defaultMaterialDeadline;
+  const recipients = normalizeRecipients(project?.emailRecipients || REPORT_EMAILS).join("\n");
+  openModal(`
+    <div class="modal-header">
+      <h2>${project ? "立项设置" : "初始立项"}</h2>
+      <button class="close-button" type="button" data-close-modal>×</button>
+    </div>
+    <form class="modal-body" id="initiationForm" data-project="${project?.id || ""}">
+      <div class="form-grid">
+        <div class="form-field">
+          <label>项目类型</label>
+          <select name="applicationKind">
+            <option value="funding" ${project?.applicationKind !== "qualification" ? "selected" : ""}>资金补贴</option>
+            <option value="qualification" ${project?.applicationKind === "qualification" ? "selected" : ""}>政策/资质</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label>法人主体</label>
+          <select name="entityId">${db.entities.map((entity) => `<option value="${entity.id}" ${project?.entityId === entity.id ? "selected" : ""}>${entity.name}</option>`).join("")}</select>
+        </div>
+        <div class="form-field">
+          <label>申报年度</label>
+          <input name="year" value="${escapeHtml(defaultYear)}" required>
+        </div>
+        <div class="form-field">
+          <label>项目编号</label>
+          <input name="code" value="${escapeHtml(project?.code || `NEW-${defaultYear}-${String(db.projects.length + 1).padStart(2, "0")}`)}" required>
+        </div>
+        <div class="form-field full">
+          <label>项目名称</label>
+          <input name="name" value="${escapeHtml(project?.name || "新增补贴项目")}" required>
+        </div>
+        <div class="form-field">
+          <label>申报地区</label>
+          <input name="area" value="${escapeHtml(project?.area || "杭州/深圳")}" required>
+        </div>
+        <div class="form-field">
+          <label>研究方向</label>
+          <input name="researchDirection" value="${escapeHtml(project?.researchDirection || "待负责人确认")}" required>
+        </div>
+        <div class="form-field">
+          <label>研发投入要求(元)</label>
+          <input name="threshold" type="number" min="0" step="10000" value="${Number(project?.threshold || 0)}">
+        </div>
+        <div class="form-field">
+          <label>预计/已申报金额(元)</label>
+          <input name="declaredAmount" type="number" min="0" step="10000" value="${Number(project?.declaredAmount || 0)}">
+        </div>
+        <div class="form-field">
+          <label>已到账金额(元)</label>
+          <input name="received" type="number" min="0" step="10000" value="${Number(project?.received || 0)}">
+        </div>
+        <div class="form-field">
+          <label>审计资料准备日</label>
+          <input name="auditDeadline" type="date" value="${escapeHtml(defaultAuditDeadline)}">
+        </div>
+        <div class="form-field">
+          <label>材料预审日</label>
+          <input name="materialDeadline" type="date" value="${escapeHtml(defaultMaterialDeadline)}" required>
+        </div>
+        <div class="form-field">
+          <label>正式申报截止日</label>
+          <input name="deadline" type="date" value="${escapeHtml(defaultDeadline)}" required>
+        </div>
+        <div class="form-field full">
+          <label>项目整体概述</label>
+          <textarea name="projectOverview" required>${escapeHtml(project?.projectOverview || project?.note || "说明这个项目为什么申报、归属哪个主体、重点要防止什么风险。")}</textarea>
+        </div>
+        <div class="form-field full">
+          <label>接收预警邮箱</label>
+          <textarea name="emailRecipients" required>${escapeHtml(recipients || REPORT_EMAILS.join("\n"))}</textarea>
+        </div>
+        <div class="form-field full">
+          <label>触发申请条件</label>
+          <textarea name="triggerConditions" required>${escapeHtml(project?.triggerConditions || "研发费用达到政府门槛；项目负责人完成费用归属审核；材料已准备齐全。")}</textarea>
+        </div>
+      </div>
+      <div class="note-box">
+        财务资料统一发送到 Agent 邮箱：<strong>${escapeHtml(AGENT_MAILBOX)}</strong>。系统会按项目编号、主体和研发费用科目自动归类，无法判断的内容进入“待负责人审核”。
+      </div>
+    </form>
+    <div class="modal-footer">
+      <button class="button" type="button" data-close-modal>取消</button>
+      <button class="button primary" type="button" data-action="save-initiation">保存立项</button>
+    </div>
+  `, true);
+}
+
+function saveInitiationFromModal() {
+  const form = document.getElementById("initiationForm");
+  if (!form.reportValidity()) return;
+  const data = Object.fromEntries(new FormData(form));
+  const recipients = normalizeRecipients(data.emailRecipients);
+  if (!recipients.length) {
+    showToast("请至少填写一个有效邮箱");
+    return;
+  }
+  const editing = form.dataset.project ? projectById(form.dataset.project) : null;
+  const funding = data.applicationKind !== "qualification";
+  const base = editing || {};
+  const payload = {
+    id: editing?.id || `P-${Date.now()}`,
+    code: data.code,
+    entityId: data.entityId,
+    name: data.name,
+    area: data.area,
+    year: data.year,
+    cycle: base.cycle || `${data.year}-01 至 ${data.year}-12`,
+    type: funding ? (base.type || "研发补贴") : (base.type || "政策/资质申请"),
+    applicationKind: data.applicationKind,
+    threshold: funding ? Number(data.threshold || 0) : 0,
+    subsidyRate: Number(base.subsidyRate || 0),
+    cap: Number(base.cap || 0),
+    declaredAmount: Number(data.declaredAmount || 0),
+    received: Number(data.received || 0),
+    deadline: data.deadline,
+    materialDeadline: data.materialDeadline,
+    auditDeadline: data.auditDeadline,
+    owner: base.owner || "张英",
+    accountingScope: funding ? "研发费用" : "政策条件",
+    projectOverview: data.projectOverview,
+    note: base.note || data.projectOverview,
+    researchDirection: data.researchDirection,
+    triggerConditions: data.triggerConditions,
+    emailRecipients: recipients,
+    agentMailbox: AGENT_MAILBOX,
+    reminderNodes: defaultReminderNodesForProject({
+      name: data.name,
+      materialDeadline: data.materialDeadline,
+      auditDeadline: data.auditDeadline,
+      deadline: data.deadline
+    }),
+    requirementProgress: funding ? base.requirementProgress : Number(base.requirementProgress || 10),
+    policyResult: funding ? base.policyResult : (base.policyResult || "待申报"),
+    requirementSummary: funding ? base.requirementSummary : (base.requirementSummary || "条件清单待负责人确认"),
+    approvalDate: base.approvalDate || "待确认",
+    executionStatus: base.executionStatus || "未启动",
+    executionProgress: base.executionProgress || 0,
+    nextProcess: base.nextProcess || (funding ? defaultNextProcess({ threshold: Number(data.threshold || 0) }) : defaultNextProcess({ applicationKind: "qualification" })),
+    materialNeeds: base.materialNeeds || (funding ? defaultMaterialNeeds({ threshold: Number(data.threshold || 0) }) : defaultMaterialNeeds({ applicationKind: "qualification" })),
+    completedInfo: base.completedInfo || "已完成初始立项，后续等待财务邮件导入和负责人审核。",
+    nextStep: base.nextStep || "每月读取财务邮件资料，确认研发费用归属和是否触发申报。",
+    formStatus: "已更新",
+    lastUpdate: new Date().toISOString().slice(0, 10)
+  };
+  if (editing) Object.assign(editing, payload);
+  else db.projects.unshift(payload);
+  ensureReminderRecordsForProject(editing || payload, db);
+  saveState();
+  closeModal();
+  render();
+  showToast(editing ? "立项设置已更新" : "初始立项已创建");
+}
+
+function openAgentMailInstructions() {
+  const recipients = REPORT_EMAILS.join("、") || "立项时填写的收件人";
+  const guide = [
+    `收件邮箱：${AGENT_MAILBOX}`,
+    "邮件标题：研发费用月度明细-2026-06-杭州微新 或 研发费用月度明细-2026-06-深圳微智",
+    "附件内容：会计明细账、研发费用科目明细、项目辅助核算表，优先使用 xlsx/csv。",
+    `预警接收：${recipients}`,
+    "系统动作：读取邮件 -> 识别研发费用 -> 匹配项目编号/主体 -> 生成待审核清单 -> 判断是否达到补贴触发条件。"
+  ].join("\n");
+  openModal(`
+    <div class="modal-header">
+      <h2>财务邮件说明</h2>
+      <button class="close-button" type="button" data-close-modal>×</button>
+    </div>
+    <div class="modal-body">
+      <div class="note-box">
+        这一步的目的不是让财务反复填表，而是让财务每月把会计系统导出的研发费用明细直接发到固定邮箱。
+      </div>
+      <textarea id="agentMailGuide" class="report-textarea" readonly>${escapeHtml(guide)}</textarea>
+      <div class="role-guide-grid">
+        <article class="role-guide-card"><strong>财务只做一件事</strong><span>每月做完账，把研发费用明细表发到 Agent 邮箱。</span></article>
+        <article class="role-guide-card"><strong>项目负责人只审核例外</strong><span>项目编号缺失、人员费用分摊、口径不确定的记录再人工确认。</span></article>
+        <article class="role-guide-card"><strong>管理层只看预警</strong><span>CEO/CFO 页面只显示缺口、触发状态和下一提醒节点。</span></article>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="button" type="button" data-close-modal>关闭</button>
+      <button class="button primary" type="button" data-action="copy-agent-mail-guide">复制说明</button>
+    </div>
+  `, true);
+}
+
+function copyAgentMailGuide() {
+  const text = document.getElementById("agentMailGuide")?.value || "";
+  navigator.clipboard?.writeText(text);
+  showToast("财务邮件说明已复制");
+}
+
 function openProjectModal() {
   openModal(`
     <div class="modal-header">
@@ -3725,7 +4037,7 @@ function openProjectModal() {
         </div>
         <div class="form-field full">
           <label>项目名称</label>
-          <input name="name" value="高新技术企业认定" required>
+          <input name="name" value="2026年深圳市应用研发专项小微企业技术创新项目" required>
         </div>
         <div class="form-field">
           <label>项目编号</label>
@@ -3802,34 +4114,36 @@ function saveMonthlyFixedNumbers() {
   if (!inputs.length) return;
   let saved = 0;
   inputs.forEach((input) => {
-    const project = projectById(input.dataset.project);
-    if (!project) return;
+    const entity = entityById(input.dataset.entity);
+    if (!entity) return;
     const amount = Number(input.value || 0);
-    const id = monthlyFixedExpenseId(project.id, ui.month);
+    const id = monthlyEntityExpenseId(entity.id, ui.month);
     const existing = db.expenses.find((expense) => expense.id === id);
     if (amount <= 0) {
       if (existing) db.expenses = db.expenses.filter((expense) => expense.id !== id);
       return;
     }
+    const projects = entityRdWarningProjects(entity.id);
     const payload = {
       id,
       date: `${ui.month}-28`,
-      entityId: project.entityId,
-      projectId: project.id,
-      category: "月度研发投入",
-      summary: `${ui.month} ${project.name}研发投入固定录入`,
+      entityId: entity.id,
+      projectId: null,
+      entryMode: "entity-rd-monthly",
+      category: "月度研发费用科目",
+      summary: `${ui.month} ${entity.name}研发费用科目本月发生额`,
       vendor: "会计月度录入",
       amount,
       eligibleAmount: amount,
       recognitionStatus: "可归集",
       allocationStatus: "无需分摊",
-      source: "月度固定录入",
-      voucherNo: `${ui.month}-固定录入`,
+      source: "财务报表研发费用科目",
+      voucherNo: `${ui.month}-${entity.id}-研发费用科目`,
       allocations: [],
       reviewMonth: ui.month,
       reviewStatus: "已审核",
       submitter: "会计",
-      reviewer: project.owner || "张英"
+      reviewer: projects.map((project) => project.owner).filter(Boolean).join("、") || "张英"
     };
     if (existing) Object.assign(existing, payload);
     else db.expenses.unshift(payload);
@@ -3837,7 +4151,7 @@ function saveMonthlyFixedNumbers() {
   });
   saveState();
   render();
-  showToast(`已保存 ${saved} 个项目的本月研发投入`);
+  showToast(`已保存 ${saved} 个主体的本月研发费用科目金额`);
 }
 
 function openLegacyImportModal() {
@@ -3854,8 +4168,9 @@ function openLegacyImportModal() {
         <div>
           <label class="field-label light" for="legacyImportText">历史项目清单</label>
           <textarea id="legacyImportText" class="paste-area">主体,项目编号,项目名称,项目类型,研究方向,获批日期,当前阶段,进度,申报年度,申报地区,项目周期,政府要求研发投入,历史已归集金额,补贴申请金额,资金到位金额,后续流程,待备材料,材料截止,负责人,已完成事项,下一步,备注
-深圳微智,SZ2024WZ-OLD,深圳已立项研发补贴项目,研发课题,化妆品新原料,2024-11-18,材料准备中,65%,2024,深圳市,2024-09 至 2025-08,2500000,1680000,1600000,0,补齐费用归集 -> 出具专项审计 -> 提交验收材料,研发辅助账/专项审计/阶段总结/付款凭证,2026-07-20,张英,项目已立项并完成部分实验,重点核对费用是否足额放在深圳微智,曾因费用分配不足影响补贴
-杭州微新,HZ2025-HNTE,杭州高新技术企业认定,资质认定,企业资质与创新能力,2025-12-10,执行中,55%,2025,浙江省/杭州市,2025-01 至 2026-12,0,0,0,0,条件预审 -> 审计报告 -> 申报提交,知识产权/科技人员/研发费用专项审计/成果转化,2026-08-20,张英,已启动条件梳理,补齐知识产权和研发费用占比说明,政策类项目无直接资金门槛</textarea>
+深圳微智,SZ2025-ZDZX-ACNE,2025年深圳重大专项--痤疮靶向溶菌酶,深圳重大专项,痤疮靶向溶菌酶,2025-08-01,拨付跟踪中,55%,2025,深圳市,2026 至 2027,4000000,2000000,1200000,402000,跟踪区级配套19.8万到账 -> 准备第二轮企业份额60万申请,研发费用归集明细/拨付申请材料/阶段报告,2027-11-30,黄蕊,市级配套40.2万已到账,准备第二轮申请,企业可拿120万；第一轮区级19.8万未到账
+杭州微新,HZ2025-RD-SUBSIDY,杭州微新研发补贴项目,研发补贴,研发补贴,2025-08-01,已递交待审批,65%,2025,杭州市钱塘区,2025-08 起,0,6000000,1500000,0,跟踪审批批准结果 -> 跟进首期150万拨付,审批反馈/拨付材料/研发费用明细,2026-07-31,张英,材料已递交,补充分期拨付条件,总额600万，首期150万
+杭州微新,HZ2025-RENT-SUBSIDY,杭州微新房租补贴项目,房租补贴,房租与场地补贴,2025-08-01,待到期申报,20%,2025,杭州市钱塘区,年度申报,0,1000000,1000000,0,年度到期后准备审计报告和房租发票 -> 提交申报,审计报告/房租发票/租赁合同/付款记录,2027-01-15,张英,已确认申报方式,确认年度周期和到期日,总额100万，按年度申报</textarea>
         </div>
         <div>
           <label class="field-label light">导入预览</label>
@@ -4451,6 +4766,10 @@ function handleAction(action, target) {
     "open-report-email": openMonthlyReportEmail,
     "apply-analysis-budget": applyAnalysisBudget,
     "copy-analysis-summary": copyAnalysisSummary,
+    "open-initiation-modal": () => openInitiationModal(),
+    "save-initiation": saveInitiationFromModal,
+    "open-agent-mail-instructions": openAgentMailInstructions,
+    "copy-agent-mail-guide": copyAgentMailGuide,
     "open-project-modal": openProjectModal,
     "save-project": saveProjectFromModal,
     "save-monthly-fixed": saveMonthlyFixedNumbers,
@@ -4485,6 +4804,7 @@ function handleAction(action, target) {
       showToast("演示数据已重置");
     }
   };
+  if (action === "open-initiation-modal") return openInitiationModal(target.dataset.project);
   if (action === "open-policy") return openPolicyModal(target.dataset.project);
   if (action === "open-project-update") return openProjectUpdateModal(target.dataset.project);
   if (action === "approve-expense") return approveExpense(target.dataset.expense);
