@@ -278,6 +278,7 @@ button {
   padding: 0 12px;
   font-size: 13px;
   font-weight: 650;
+  text-decoration: none;
   transition: 0.16s ease;
 }
 
@@ -869,6 +870,65 @@ button {
   line-height: 1.55;
 }
 
+.automation-brief-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.automation-card,
+.warning-item {
+  background: var(--panel);
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  padding: 16px;
+  box-shadow: var(--shadow-soft);
+}
+
+.automation-card p {
+  margin: 10px 0 14px;
+  color: var(--muted);
+  line-height: 1.65;
+  font-size: 13px;
+}
+
+.warning-list {
+  display: grid;
+  gap: 10px;
+}
+
+.warning-item {
+  display: grid;
+  grid-template-columns: minmax(220px, 1.35fr) minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  box-shadow: none;
+}
+
+.warning-item strong,
+.warning-item span,
+.warning-item small {
+  display: block;
+}
+
+.warning-item small {
+  color: var(--muted);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.warning-item.ready {
+  border-left: 4px solid var(--green);
+}
+
+.warning-item.watch {
+  border-left: 4px solid var(--amber);
+}
+
+.warning-item.blocked {
+  border-left: 4px solid var(--red);
+}
+
 .simple-note-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -889,6 +949,23 @@ button {
   flex-direction: column;
   gap: 14px;
   padding: 16px;
+}
+
+.dossier-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  padding: 16px;
+}
+
+.dossier-card {
+  min-height: 290px;
+}
+
+.dossier-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: auto;
 }
 
 .project-card header {
@@ -952,6 +1029,40 @@ button {
 .dual-progress {
   display: grid;
   gap: 10px;
+}
+
+.dossier-detail {
+  overflow: hidden;
+}
+
+.dossier-section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.dossier-section-grid .note-box {
+  min-height: 120px;
+}
+
+.dossier-section-grid .note-box strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.dossier-section-grid .note-box span {
+  display: block;
+  color: var(--text);
+  line-height: 1.65;
+}
+
+.dossier-progress {
+  display: grid;
+  grid-template-columns: minmax(260px, 1.5fr) repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px;
+  align-items: stretch;
 }
 
 .progress-cell {
@@ -1681,11 +1792,17 @@ button {
 
   .entity-summary,
   .project-grid,
+  .automation-brief-grid,
   .import-layout,
   .allocation-guidance,
   .role-guide-grid,
   .simple-note-grid {
     grid-template-columns: 1fr;
+  }
+
+  .warning-item {
+    grid-template-columns: 1fr;
+    align-items: start;
   }
 
   .entity-card {
@@ -1779,7 +1896,10 @@ button {
   .workflow-strip,
   .action-grid,
   .role-guide-grid,
-  .simple-note-grid {
+  .simple-note-grid,
+  .dossier-grid,
+  .dossier-section-grid,
+  .dossier-progress {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1812,7 +1932,10 @@ button {
   .workflow-strip,
   .action-grid,
   .role-guide-grid,
-  .simple-note-grid {
+  .simple-note-grid,
+  .dossier-grid,
+  .dossier-section-grid,
+  .dossier-progress {
     grid-template-columns: 1fr;
   }
 
