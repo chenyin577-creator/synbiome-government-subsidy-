@@ -58,7 +58,7 @@ const navItems = [
   ["intake", "立项中心", "初始立项、接收人和提醒节点"],
   ["monthly", "每月录入", "每月录入固定研发投入数字"],
   ["report", "月报简报", "每月给管理层看的简版汇报"],
-  ["projects", "项目设置", "先设置项目目标，后续只录数字"]
+  ["projects", "项目档案", "一页一个项目，沉淀申请进度和预警"]
 ];
 
 const seed = {
@@ -308,7 +308,8 @@ const ui = {
   month: TODAY.toISOString().slice(0, 7),
   analysisBudget: 1000000,
   search: "",
-  allocationExpenseId: null
+  allocationExpenseId: null,
+  projectId: null
 };
 
 let db = loadState();
@@ -559,6 +560,14 @@ function setSyncStatus(text, tone = "local") {
   if (!dom.syncStatus) return;
   dom.syncStatus.textContent = text;
   dom.syncStatus.dataset.tone = tone;
+}
+
+function scrollPageTop() {
+  try {
+    window.scrollTo?.({ top: 0, behavior: "instant" });
+  } catch {
+    // 旧浏览器不支持时忽略，不影响功能。
+  }
 }
 
 function updateAccountUi() {
@@ -2955,20 +2964,21 @@ function allocationLabel(expense) {
 }
 
 function renderProjects() {
-  const projects = filteredProjects().filter(isBalanceProject);
-  const opportunities = filteredOpportunityProjects();
-  const fundingProjects = projects.filter(isBalanceProject);
+  const selected = ui.projectId ? projectById(ui.projectId) : null;
+  if (selected) return renderProjectDossierPage(selected);
+
+  const projects = filteredProjects();
+  const fundingProjects = projects.filter(isFundingProject);
+  const rdWarningProjects = projects.filter(isBalanceProject);
   const requested = fundingProjects.reduce((sum, item) => sum + fundingRequested(item), 0);
   const received = fundingProjects.reduce((sum, item) => sum + Number(item.received || 0), 0);
-  const visibleEntityIds = [...new Set(fundingProjects.map((project) => project.entityId))];
-  const target = visibleEntityIds.reduce((sum, entityId) => sum + aggregateEntity(entityId).target, 0);
-  const collected = visibleEntityIds.reduce((sum, entityId) => sum + aggregateEntity(entityId).collected, 0);
+  const warningCount = rdWarningProjects.filter((project) => aggregateProject(project).gap > 0 || aggregateProject(project).risk !== "low").length;
   return `
     <div class="page-stack">
       <section class="monthly-hero">
         <div>
-          <h2>项目设置</h2>
-          <p>前期把补贴项目和目标数字填好：政府要求研发投入、补贴申请金额、已到账金额。后续每月只录新增研发投入。</p>
+          <h2>项目档案</h2>
+          <p>申请数量不多，按项目一页一页建档。每个档案只保留领导需要看的关键数字、公司要求、当前缺口和预警方式。</p>
         </div>
         <div class="month-controls">
           <button class="button primary" type="button" data-action="open-project-modal">新增项目</button>
@@ -2977,36 +2987,228 @@ function renderProjects() {
       </section>
 
       <div class="metric-row">
-        ${renderTopMetric("补贴项目", fundingProjects.length, "只保留与研发投入平衡相关的项目")}
-        ${renderTopMetric("研发投入要求", `${wan(target)} 万元`, "两地主体合计")}
-        ${renderTopMetric("当前已归集", `${wan(collected)} 万元`, "含月度固定录入")}
+        ${renderTopMetric("项目档案", projects.length, "杭州、深圳全部申请项目")}
+        ${renderTopMetric("需研发预警", rdWarningProjects.length, "有研发费用硬性要求")}
+        ${renderTopMetric("风险项目", warningCount, "缺口未补足或节点临近")}
         ${renderTopMetric("补贴到账率", requested ? pct(received / requested) : "0%", `到账 ${wan(received)} / 申请 ${wan(requested)} 万元`)}
       </div>
 
       <section class="panel">
         <div class="simple-note-grid">
-          <div class="note-box"><strong>新增项目时只填关键字段</strong><br>主体、项目名称、项目编号、政府要求研发投入。其他字段可以后面点“更新”补齐。</div>
-          <div class="note-box"><strong>历史项目建议批量导入</strong><br>一次性粘贴已有项目清单，尤其要带上历史已归集金额，避免从零开始算。</div>
-          <div class="note-box"><strong>不相关事项先不管</strong><br>附件、权限、材料台账、细分凭证后续需要再加；第一阶段先盯研发投入达标。</div>
+          <div class="note-box"><strong>怎么建档</strong><br>每个项目一张卡，点“查看档案”进入详情页。详情页只写清楚项目是什么、能拿多少钱、公司要满足什么条件。</div>
+          <div class="note-box"><strong>研发费用怎么看</strong><br>有 400 万或 600 万研发费用要求的项目，系统按主体研发费用科目累计，自动显示已达成和缺口。</div>
+          <div class="note-box"><strong>怎么预警</strong><br>如果距离材料节点 3 到 6 个月仍有缺口，详情页会标为预警，并列出邮件提醒对象。</div>
         </div>
       </section>
 
       <section class="panel">
         <div class="panel-header">
-          <div class="panel-title"><h2>补贴项目设置表</h2><span class="count">${projects.length}</span></div>
+          <div class="panel-title"><h2>项目建档列表</h2><span class="count">${projects.length}</span></div>
           <button class="button primary small" type="button" data-action="open-project-modal">新增项目</button>
         </div>
-        ${renderSimpleProjectGapTable(projects)}
-      </section>
-
-      <section class="panel">
-        <div class="panel-header">
-          <div class="panel-title"><h2>关键项目机会</h2><span class="count">${opportunities.length}</span></div>
-        </div>
-        ${renderOpportunityTable(opportunities)}
+        ${renderDossierCardGrid(projects)}
       </section>
     </div>
   `;
+}
+
+function renderDossierCardGrid(projects) {
+  if (!projects.length) return '<div class="empty-state">暂无项目档案，请先新增项目</div>';
+  return `
+    <div class="dossier-grid">
+      ${projects.map(renderDossierCard).join("")}
+    </div>
+  `;
+}
+
+function renderDossierCard(project) {
+  const entity = entityById(project.entityId);
+  const aggregate = aggregateProject(project);
+  const hasRdRequirement = Number(project.threshold || 0) > 0;
+  return `
+    <article class="project-card dossier-card">
+      <header>
+        <div>
+          <h3>${escapeHtml(project.name)}</h3>
+          <p>${escapeHtml(project.code)} · ${escapeHtml(entity.name)} · ${escapeHtml(project.type || projectKindLabel(project))}</p>
+        </div>
+        ${hasRdRequirement ? riskTag(aggregate.risk) : statusTag(project.executionStatus || "已建档")}
+      </header>
+      <div class="project-stats">
+        <div class="mini-stat"><label>补贴申请金额</label><strong>${wan(fundingRequested(project))} 万</strong></div>
+        <div class="mini-stat"><label>已到账</label><strong>${wan(project.received)} 万</strong></div>
+        <div class="mini-stat"><label>研发费用要求</label><strong>${hasRdRequirement ? `${wan(project.threshold)} 万` : "无硬性要求"}</strong></div>
+        <div class="mini-stat"><label>当前缺口</label><strong>${hasRdRequirement ? `${wan(aggregate.gap)} 万` : "不适用"}</strong></div>
+      </div>
+      <div class="note-box">${escapeHtml(project.projectOverview || project.note || "已建立项目基础档案，后续由负责人补充材料节点。")}</div>
+      <div class="dossier-actions">
+        <button class="button primary small" type="button" data-action="open-project-dossier" data-project="${project.id}">查看档案</button>
+        <button class="button small" type="button" data-action="open-project-update" data-project="${project.id}">补充信息</button>
+      </div>
+    </article>
+  `;
+}
+
+function renderProjectDossierPage(project) {
+  const entity = entityById(project.entityId);
+  const aggregate = aggregateProject(project);
+  const warning = projectDossierWarning(project, aggregate);
+  const latest = latestEntityRdMonth(project.entityId);
+  const hasRdRequirement = Number(project.threshold || 0) > 0;
+  const recipients = normalizeRecipients(project.emailRecipients || REPORT_EMAILS);
+  return `
+    <div class="page-stack">
+      <section class="monthly-hero dossier-hero">
+        <div>
+          <h2>项目建档：${escapeHtml(project.name)}</h2>
+          <p>${escapeHtml(project.code)} · ${escapeHtml(entity.name)} · ${escapeHtml(project.area)} · 负责人：${escapeHtml(project.owner || "待确认")}</p>
+        </div>
+        <div class="month-controls">
+          <button class="button" type="button" data-action="back-project-dossiers">返回列表</button>
+          <button class="button primary" type="button" data-action="open-project-update" data-project="${project.id}">补充信息</button>
+        </div>
+      </section>
+
+      <div class="metric-row">
+        ${renderTopMetric("补贴申请金额", `${wan(fundingRequested(project))} 万元`, project.type || "资金类申请")}
+        ${renderTopMetric("已到账", `${wan(project.received)} 万元`, `到账率 ${fundingRequested(project) ? pct(project.received / fundingRequested(project)) : "0%"}`)}
+        ${renderTopMetric("研发费用要求", hasRdRequirement ? `${wan(project.threshold)} 万元` : "无硬性要求", hasRdRequirement ? `${entity.name}主体口径` : "只跟踪材料和拨付")}
+        ${renderTopMetric("当前缺口", hasRdRequirement ? `${wan(aggregate.gap)} 万元` : "不适用", hasRdRequirement ? `截至 ${latest.label} 已归集 ${wan(aggregate.total)} 万` : "无研发费用达标风险")}
+      </div>
+
+      <section class="panel dossier-detail">
+        <div class="panel-header">
+          <div class="panel-title"><h2>一页项目说明</h2><span class="count">领导版</span></div>
+        </div>
+        <div class="dossier-section-grid">
+          <article class="note-box">
+            <strong>项目概况</strong>
+            <span>${escapeHtml(project.projectOverview || project.note || "项目概况待负责人补充。")}</span>
+          </article>
+          <article class="note-box">
+            <strong>对公司主体要求</strong>
+            <span>${escapeHtml(projectCompanyRequirement(project, entity))}</span>
+          </article>
+          <article class="note-box">
+            <strong>后续流程</strong>
+            <span>${escapeHtml(project.nextProcess || "后续流程待负责人补充。")}</span>
+          </article>
+          <article class="note-box">
+            <strong>后续材料</strong>
+            <span>${escapeHtml(project.materialNeeds || "材料清单待负责人补充。")}</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>研发费用当前进度</h2><span class="count">${hasRdRequirement ? "自动累计" : "无硬性要求"}</span></div>
+          <button class="button small" type="button" data-nav-target="monthly">录入本月数字</button>
+        </div>
+        ${renderDossierRdProgress(project, aggregate, latest)}
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>风险预警</h2>${smartLevelTag(warning.level)}</div>
+        </div>
+        <div class="report-conclusion">
+          <strong>${escapeHtml(warning.title)}</strong>
+          <span>${escapeHtml(warning.detail)}</span>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div class="panel-title"><h2>邮件预警</h2><span class="count">${recipients.length || 1}</span></div>
+          <button class="button small" type="button" data-action="open-report-email">邮件草稿</button>
+        </div>
+        <div class="simple-note-grid">
+          <div class="note-box"><strong>提醒对象</strong><br>${escapeHtml(recipients.join("、") || REPORT_EMAILS.join("、") || "待设置收件人")}</div>
+          <div class="note-box"><strong>触发规则</strong><br>${escapeHtml(projectEmailWarningRule(project, warning))}</div>
+          <div class="note-box"><strong>建议邮件内容</strong><br>${escapeHtml(projectEmailWarningText(project, aggregate, warning))}</div>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function projectCompanyRequirement(project, entity) {
+  if (Number(project.threshold || 0) <= 0) {
+    return `${entity.name}暂无研发费用硬性达标要求；本项目主要跟踪申报材料、审计资料、发票或拨付节点。${project.accountingScope || ""}`;
+  }
+  return `${entity.name}需按公司主体口径累计合规研发费用达到 ${wan(project.threshold)} 万。当前口径：${project.accountingScope || "从财务报表研发费用科目累计。"} ${project.triggerConditions || ""}`;
+}
+
+function renderDossierRdProgress(project, aggregate, latest) {
+  if (Number(project.threshold || 0) <= 0) {
+    return `
+      <div class="empty-state">该项目暂无研发费用硬性门槛。只需在项目档案里跟踪材料节点、审计报告、发票或资金到账。</div>
+    `;
+  }
+  return `
+    <div class="dossier-progress">
+      ${renderRatioCell("研发费用达标率", aggregate.total, project.threshold, `已归集 ${wan(aggregate.total)} 万 / 要求 ${wan(project.threshold)} 万`)}
+      <div class="mini-stat"><label>最新财务数据月份</label><strong>${escapeHtml(latest.label)}</strong></div>
+      <div class="mini-stat"><label>当前缺口</label><strong class="${aggregate.gap > 0 ? "danger-text" : "money-green"}">${wan(aggregate.gap)} 万</strong></div>
+      <div class="mini-stat"><label>当前状态</label><strong>${aggregate.gap > 0 ? "需继续补足" : "已达到要求"}</strong></div>
+    </div>
+  `;
+}
+
+function latestEntityRdMonth(entityId) {
+  const expenses = entityMonthlyRdExpenses(entityId)
+    .sort((a, b) => String(b.reviewMonth || b.date || "").localeCompare(String(a.reviewMonth || a.date || "")));
+  const latest = expenses[0];
+  return {
+    label: latest ? (latest.reviewMonth || String(latest.date || "").slice(0, 7)) : "尚未录入",
+    amount: Number(latest?.eligibleAmount || latest?.amount || 0)
+  };
+}
+
+function projectDossierWarning(project, aggregate) {
+  if (Number(project.threshold || 0) <= 0) {
+    return {
+      level: "low",
+      title: "暂无研发费用达标风险",
+      detail: "该项目没有研发费用硬性门槛，重点跟踪材料、审计报告、发票和到账节点。"
+    };
+  }
+  if (aggregate.gap <= 0) {
+    return {
+      level: "low",
+      title: "研发费用已达到要求",
+      detail: "继续保留财务报表、研发费用明细账和审计材料，避免后续审核口径变化。"
+    };
+  }
+  const days = Number.isFinite(dateDiffDays(project.materialDeadline)) ? dateDiffDays(project.materialDeadline) : 999;
+  const months = Math.max(Math.ceil(days / 30), 1);
+  const monthlyNeed = aggregate.gap / months;
+  if (days <= 180) {
+    return {
+      level: "high",
+      title: "需要提前预警",
+      detail: `距离关键材料节点约 ${months} 个月，仍缺 ${wan(aggregate.gap)} 万。按平均值测算，每月至少还要新增 ${wan(monthlyNeed)} 万合规研发费用。`
+    };
+  }
+  return {
+    level: "mid",
+    title: "持续跟踪研发费用缺口",
+    detail: `当前仍缺 ${wan(aggregate.gap)} 万。建议每月更新财务报表研发费用科目，连续观察 3 到 6 个月是否能按均值达标。`
+  };
+}
+
+function projectEmailWarningRule(project, warning) {
+  if (warning.level === "high") return "距离材料节点 6 个月内仍有研发费用缺口时，自动发邮件给项目负责人和管理层。";
+  if (warning.level === "mid") return "每月录入研发费用后，如仍有缺口，在月报中提示负责人持续跟踪。";
+  return Number(project.threshold || 0) > 0 ? "已达标后仍保留月度复核，防止审计口径变化。" : "无研发费用门槛项目只在材料节点临近时提醒。";
+}
+
+function projectEmailWarningText(project, aggregate, warning) {
+  if (Number(project.threshold || 0) <= 0) {
+    return `${project.name}：请关注材料节点和资金到账，不涉及研发费用达标预警。`;
+  }
+  return `${project.name}：研发费用要求 ${wan(project.threshold)} 万，当前已归集 ${wan(aggregate.total)} 万，缺口 ${wan(aggregate.gap)} 万。${warning.title}`;
 }
 
 function renderTopMetric(label, value, help) {
@@ -4804,6 +5006,19 @@ function handleAction(action, target) {
       showToast("演示数据已重置");
     }
   };
+  if (action === "open-project-dossier") {
+    ui.page = "projects";
+    ui.projectId = target.dataset.project;
+    render();
+    scrollPageTop();
+    return;
+  }
+  if (action === "back-project-dossiers") {
+    ui.projectId = null;
+    render();
+    scrollPageTop();
+    return;
+  }
   if (action === "open-initiation-modal") return openInitiationModal(target.dataset.project);
   if (action === "open-policy") return openPolicyModal(target.dataset.project);
   if (action === "open-project-update") return openProjectUpdateModal(target.dataset.project);
@@ -4828,6 +5043,7 @@ document.addEventListener("click", (event) => {
   const nav = event.target.closest("[data-nav]");
   if (nav) {
     ui.page = nav.dataset.nav;
+    if (ui.page === "projects") ui.projectId = null;
     render();
     return;
   }
